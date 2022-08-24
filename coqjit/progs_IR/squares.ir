@@ -1,0 +1,25 @@
+[Main: Fun1]
+Function Fun1:
+Parameters: ()
+Version: [Entry: lbl1]
+<lbl1> reg1 <- 1 lbl2
+<lbl2> reg11 <- 11 lbl3
+<lbl3> reg2 <- Lt reg1 reg11 lbl4
+<lbl4> Cond reg2 lbl5 lbl7
+<lbl5> reg3 <- Call Fun2 (reg1) lbl6
+<lbl6> reg1 <- Uplus 1 reg1 lbl3
+<lbl7> Return reg3
+EndVersion
+EndFunction
+
+Function Fun2:
+Parameters: (reg1)
+Version: [Entry: lbl1]
+<lbl1> reg2 <- Mult reg1 reg1 lbl2
+<lbl2> Print reg2 lbl3
+<lbl3> Return reg2
+EndVersion
+EndFunction
+
+
+EndProgram

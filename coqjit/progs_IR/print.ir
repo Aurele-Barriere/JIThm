@@ -1,0 +1,13 @@
+[Main: Fun1]
+
+Function Fun1:
+Parameters: ()
+Version: [Entry: lbl1]
+<lbl1> reg1 <- 1997 lbl2
+<lbl2> Print reg1 lbl3
+<lbl3> reg2 <- 1998 lbl4
+<lbl4> Print reg2 lbl5
+<lbl5> Return reg2
+EndVersion
+EndFunction
+EndProgram

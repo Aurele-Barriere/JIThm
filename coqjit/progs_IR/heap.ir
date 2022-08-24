@@ -1,0 +1,16 @@
+[Main: Fun1]
+
+Function Fun1:
+Parameters: ()
+Version: [Entry: lbl1]
+<lbl1> reg1 <- 1 lbl2
+<lbl2> reg28 <- 28 lbl3
+<lbl3> reg76 <- 76 lbl4
+<lbl4> MemSet[reg76] <- reg28 lbl5
+<lbl5> reg2 <- MemGet[reg76] lbl6
+<lbl6> Print reg2 lbl7
+<lbl7> Return reg2
+EndVersion
+EndFunction
+
+EndProgram

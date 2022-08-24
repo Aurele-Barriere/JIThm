@@ -1,0 +1,17 @@
+*.aux
+*.vo
+*.vok
+*.vos
+*.glob
+extraction/
+_build/
+jit
+test
+test.s
+.depend
+.lia.cache
+.nra.cache
+*.o
+tmp.s
+linked.s
+linked.o

@@ -1,0 +1,47 @@
+[Main: Fun1]
+
+Function Fun1:
+Parameters: ()
+Version: [Entry: lbl1]
+<lbl1> reg100 <- 100000 lbl2
+<lbl2> reg1 <- Call Fun2 (reg100) lbl3
+<lbl3> reg1 <- 2 lbl4
+<lbl4> reg2 <- Lt reg1 reg100 lbl5
+<lbl5> Cond reg2 lbl6 lbl8
+<lbl6> reg3 <- Call Fun3 (reg1, reg100) lbl7
+<lbl7> reg1 <- Uplus 1 reg1 lbl4
+<lbl8> Return reg1
+EndVersion
+EndFunction
+
+Function Fun2:
+Parameters: (reg1)
+Version: [Entry: lbl1]
+<lbl1> reg100 <- 0 lbl2
+<lbl2> reg2 <- 2 lbl3
+<lbl3> reg3 <- Lt reg2 reg1 lbl4
+<lbl4> Cond reg3 lbl5 lbl7
+<lbl5> MemSet[reg2] <- reg100 lbl6
+<lbl6> reg2 <- Uplus 1 reg2 lbl3
+<lbl7> Return reg100
+EndVersion
+EndFunction
+
+Function Fun3:
+Parameters: (reg1, reg100)
+Version: [Entry: lbl1]
+<lbl1> reg111 <- 1 lbl2
+<lbl2> reg2 <- MemGet[reg1] lbl3
+<lbl3> Cond reg2 lbl4 lbl5
+<lbl4> Return reg1
+<lbl5> Print reg1 lbl6
+<lbl6> reg2 <- reg1 lbl7
+<lbl7> reg3 <- Lt reg2 reg100 lbl8
+<lbl8> Cond reg3 lbl9 lbl11
+<lbl9> MemSet[reg2] <- reg111 lbl10
+<lbl10> reg2 <- Plus reg2 reg1 lbl7
+<lbl11> Return reg1
+EndVersion
+EndFunction
+
+EndProgram

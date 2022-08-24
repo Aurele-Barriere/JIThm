@@ -1,0 +1,12 @@
+[Main: Fun1]
+
+Function Fun1:
+Parameters: ()
+Version: [Entry: lbl1]
+<lbl1> reg1 <- 7 lbl2
+<lbl2> reg2 <- 93 lbl3
+<lbl3> reg3 <- Plus reg1 reg2 lbl4
+<lbl4> Return reg3
+EndVersion
+EndFunction
+EndProgram

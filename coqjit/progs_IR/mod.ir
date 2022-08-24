@@ -1,0 +1,14 @@
+[Main: Fun1]
+
+Function Fun1:
+Parameters: ()
+Version: [Entry: lbl1]
+<lbl1> reg1 <- 8 lbl2
+<lbl2> reg2 <- 3 lbl3
+<lbl3> reg3 <- Mod reg1 reg2 lbl4
+<lbl4> Print reg3 lbl5
+<lbl5> Return reg3
+EndVersion
+EndFunction
+
+EndProgram

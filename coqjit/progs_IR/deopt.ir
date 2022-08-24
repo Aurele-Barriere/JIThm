@@ -1,0 +1,41 @@
+[Main: Fun1]
+
+Function Fun1:
+Parameters: ()
+Version: [Entry: lbl1]
+<lbl1> reg1 <- 1 lbl2
+<lbl2> reg2 <- 2 lbl3
+<lbl3> reg3 <- 0 lbl4
+<lbl4> reg4 <- Call Fun2 (reg1, reg1, reg3) lbl5
+<lbl5> reg4 <- Call Fun2 (reg2, reg2, reg3) lbl6
+<lbl6> reg4 <- Call Fun2 (reg2, reg1, reg3) lbl7
+<lbl7> reg4 <- Call Fun2 (reg1, reg2, reg1) lbl8
+<lbl8> Return reg1
+EndVersion
+EndFunction
+
+
+Function Fun2:
+Parameters: (reg1, reg2, reg3)
+Version: [Entry: lbl1]
+<lbl1> reg1 <- Umult 2 reg1 lbl2
+<lbl2> reg2 <- Umult 2 reg2 lbl3
+<lbl3> reg3 <- Umult 2 reg3 lbl4
+<lbl4> reg1 <- Plus reg1 reg2 lbl5
+<lbl5> reg1 <- Plus reg1 reg3 lbl6
+<lbl6> Print reg1 lbl7
+<lbl7> Return reg1
+EndVersion
+
+Version: [Entry: lbl1]
+<lbl1> reg1 <- Umult 2 reg1 lbl2
+<lbl2> reg2 <- Umult 2 reg2 lbl3
+<lbl3> reg4 <- EqZero reg3 lbl4
+<lbl4> Assume (reg3) Fun2.lbl3 {(reg1, reg1) (reg2, reg2) (reg3, reg3)} lbl5
+<lbl5> reg1 <- Plus reg1 reg2 lbl6
+<lbl6> Print reg1 lbl7
+<lbl7> Return reg1
+EndVersion
+EndFunction
+
+EndProgram

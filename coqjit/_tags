@@ -1,0 +1,3 @@
+true: use_str
+<prim_test>: -traverse
+<tmp>: -traverse
