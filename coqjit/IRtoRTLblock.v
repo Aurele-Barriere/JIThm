@@ -213,8 +213,10 @@ Definition instr_to_block (i:IR.instruction) (live:live_abs_state) (def:def_abs_
   match i with
   | Nop next => OK (Bblock ([], Bnop next))
                   
-  | IPrint r next =>
-    OK (Bblock ([Bcall EF_print [shift_reg r] void_reg], Bnop next))
+  | IPrint ex next =>
+      let (op, lst) := transf_expr ex in
+      OK (Bblock ([Bop op lst void_reg;
+                   Bcall EF_print [void_reg] void_reg], Bnop next))
        
   | Cond r tr fl =>
     OK (Bblock ([], Bcond (Ccompimm Ceq Int.zero) [shift_reg r] fl tr))

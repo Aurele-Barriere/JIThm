@@ -104,8 +104,8 @@ Definition ir_int_step (is:ir_state) : free (trace * itret checkpoint ir_state) 
       | Nop next =>
         fret (E0, Halt (v, next, rm))
 
-      | IPrint r next =>
-        do res <<- fret' (eval_reg r rm);
+      | IPrint e next =>
+        do res <<- fret' (eval_expr e rm);
           fret (print_event res, Halt (v, next, rm))
         
       | Op r ex next =>

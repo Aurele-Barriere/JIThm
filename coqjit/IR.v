@@ -56,7 +56,7 @@ Definition empty_varmap: varmap := nil.
 (* Instruction set *)
 Inductive instruction: Type :=
 | Nop: label -> instruction
-| IPrint: reg -> label -> instruction
+| IPrint: expr -> label -> instruction
 | Call: fun_id -> list reg -> reg -> label -> instruction (* list reg, not expr *)
 | Cond: reg -> label -> label -> instruction             (* branching *)
 | Return: reg -> instruction     (* only return reg: prevent transforming into several RTL instructions *)

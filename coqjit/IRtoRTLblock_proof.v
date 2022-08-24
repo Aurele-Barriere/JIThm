@@ -1805,19 +1805,23 @@ Proof.
 
       * repeat sdo_ok. inv INSTR. (* Print *)
         exists tt. exists (Halt_Block (BPF l (Regmap.set void_reg (Vint Integers.Int.zero) rs)), mkmut stkblk top mem). split; auto.
-        ** left. eapply agree_eval_reg in HDO0; eauto.
-           2: { unfold reg_live. rewrite PositiveSet.add_spec. left. auto. }
+        ** left. destruct (transf_expr e) as [op lst] eqn:TRANSF. 
+           eapply agree_eval_expr in HDO0; eauto.
            eapply plus_left with (t1:=E0) (t2:=print_event i); auto.
            { eapply rtl_block_step. simpl. rewrite BLK. simpl. eauto. }
+           eapply star_step with (t1:=E0) (t2:=print_event i); auto.
+           { apply rtl_block_step. simpl. inv H0. simpl. rewrite exec_bind2.
+             unfold sbind2, sbind. rewrite HDO0. simpl. eauto. }
            eapply star_step with (t1:=print_event i) (t2:=E0); auto.
-           { apply rtl_block_step. simpl. unfold ASMinterpreter.prim_sem_dec. simpl. rewrite HDO0.
-             simpl. eauto. }
+           { apply rtl_block_step. simpl. unfold ASMinterpreter.prim_sem_dec. simpl.
+             repeat rewrite exec_bind2. rewrite exec_bind. unfold sbind2, sbind. 
+             rewrite Regmap.gss. simpl. eauto. }
            eapply star_one; eauto.
-           { apply rtl_block_step. simpl. eauto. }
+           { apply rtl_block_step. simpl. rewrite Regmap.set2. eauto. }
         ** eapply match_block; eauto.
            { eapply def_analyze_correct; eauto. simpl. left. auto.
              unfold def_dr_transf. rewrite CODE. auto. }
-           eapply agree_transfer; eauto. simpl. left. auto. apply agree_void. eapply reg_live_agree. eauto.
+           eapply agree_transfer; eauto. simpl. left. auto. apply agree_void. eapply expr_live_agree. eauto.
            
       * repeat sdo_ok. unfold instr_to_block in INSTR. repeat do_ok. (* Call *) simpl.
         unfold generate_args in HDO3. unfold generate_retcall in BLK. repeat do_ok.

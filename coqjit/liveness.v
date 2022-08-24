@@ -163,7 +163,7 @@ Definition live_dr_transf
   | Some i =>
     match i with
     | Nop next => after
-    | IPrint r next => reg_live r after
+    | IPrint e next => expr_live e after
     | MemSet adreg valreg next =>
       reg_live adreg (reg_live valreg after)
     | MemGet dstreg adreg next =>

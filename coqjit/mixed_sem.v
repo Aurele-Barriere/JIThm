@@ -248,9 +248,9 @@ Inductive input_step : program -> input_state -> Events.trace -> input_state -> 
       (CODE: (ver_code v) # pc = Some (Nop next)),
       input_step p (State (v, pc, rm) stk mem) E0 (State (v, next, rm) stk mem)
 | input_Print:
-    forall p v pc rm stk next r val mem
-      (CODE: (ver_code v) # pc = Some (IPrint r next))
-      (EVAL: eval_reg r rm = OK val),
+    forall p v pc rm stk next e val mem
+      (CODE: (ver_code v) # pc = Some (IPrint e next))
+      (EVAL: eval_expr e rm = OK val),
       input_step p (State (v, pc, rm) stk mem) (print_event val) (State (v, next, rm) stk mem)
 | input_Op:
     forall p v pc rm stk r expr next val mem

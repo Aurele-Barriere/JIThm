@@ -47,7 +47,7 @@ type avarmap = (areg * aexpr) list
 
 type ainstruction =
   | Anop of alabel
-  | Aprint of areg * alabel
+  | Aprint of aexpr * alabel
   | Acall of afun_id * areg list * areg * alabel
   | Acond of areg * alabel * alabel
   | Areturn of areg
@@ -122,7 +122,7 @@ let convert_target (at:adeopt_target): deopt_target =
 let convert_instr (ai:ainstruction): instruction =
   match ai with
   | Anop l -> Nop (convert_lbl l)
-  | Aprint (r, l) -> IPrint (convert_reg r, convert_lbl l)
+  | Aprint (e, l) -> IPrint (convert_expr e, convert_lbl l)
   | Acall (f, rl, r, l) -> Call (pos_of_int f, convert_reglist rl, convert_reg r, convert_lbl l)
   | Acond (r, l1, l2) -> Cond (convert_reg r, convert_lbl l1, convert_lbl l2)
   | Areturn (r) -> Return (convert_reg r)

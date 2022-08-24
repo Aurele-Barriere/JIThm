@@ -79,7 +79,7 @@ instruction:
     {IRast.Amemset (r1,r2,l)}
   | r1=REG ARROW MEMGET LBRACK r2=reg RBRACK l=LBL
     {IRast.Amemget (r1,r2,l)}
-  | PRINT e=reg l=LBL
+  | PRINT e=expr l=LBL
     {IRast.Aprint (e,l)}
   | ASSUME LPAR guard=reg RPAR t=target LBRACE vm=varmap RBRACE next=LBL
     {IRast.Aassume (guard,t,vm,next)}
