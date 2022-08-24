@@ -59,14 +59,15 @@ Inductive instruction: Type :=
 | IPrint: expr -> label -> instruction
 | Call: fun_id -> list reg -> reg -> label -> instruction (* list reg, not expr *)
 | Cond: reg -> label -> label -> instruction             (* branching *)
-| Return: reg -> instruction     (* only return reg: prevent transforming into several RTL instructions *)
+| Return: expr -> instruction
 | Op: reg -> expr -> label -> instruction
 (* Memory Manipulaiton *)
 | MemSet: reg -> reg -> label -> instruction (* 1st reg: address, 2nd reg: value *)
 | MemGet: reg -> reg -> label -> instruction (* 1st reg: dst, 2nd reg: address *)
 (* Speculation *)
-| Assume: reg -> deopt_target -> varmap -> label -> instruction.
-(* no synthesizing of extra frames for now *)
+| Assume: reg -> deopt_target -> varmap -> label -> instruction
+(* no synthesizing of extra frames for now *).
+
 
 Definition code: Type := PTree.t instruction.
 

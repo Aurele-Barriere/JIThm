@@ -50,7 +50,7 @@ type ainstruction =
   | Aprint of aexpr * alabel
   | Acall of afun_id * areg list * areg * alabel
   | Acond of areg * alabel * alabel
-  | Areturn of areg
+  | Areturn of aexpr
   | Aop of areg * aexpr * alabel
   | Amemset of areg * areg * alabel
   | Amemget of areg * areg * alabel
@@ -125,7 +125,7 @@ let convert_instr (ai:ainstruction): instruction =
   | Aprint (e, l) -> IPrint (convert_expr e, convert_lbl l)
   | Acall (f, rl, r, l) -> Call (pos_of_int f, convert_reglist rl, convert_reg r, convert_lbl l)
   | Acond (r, l1, l2) -> Cond (convert_reg r, convert_lbl l1, convert_lbl l2)
-  | Areturn (r) -> Return (convert_reg r)
+  | Areturn (e) -> Return (convert_expr e)
   | Aop (r, e, l) -> Op (convert_reg r, convert_expr e, convert_lbl l)
   | Amemset (r1, r2, l) -> MemSet (convert_reg r1, convert_reg r2, convert_lbl l)
   | Amemget (r1, r2, l) -> MemGet (convert_reg r1, convert_reg r2, convert_lbl l)

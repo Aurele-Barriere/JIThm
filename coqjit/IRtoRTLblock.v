@@ -235,9 +235,11 @@ Definition instr_to_block (i:IR.instruction) (live:live_abs_state) (def:def_abs_
     OK (Bblock (push_live ++ close ++ push_args ++ push_callee ++ retcall,
                 Breturn ret_id_reg))
     
-  | Return retreg =>
+  | Return ex =>
+      let (op, lst) := transf_expr ex in
     OK (Bblock
-          ([Bcall EF_save [shift_reg retreg] void_reg;
+          ([Bop op lst void_reg;
+            Bcall EF_save [void_reg] void_reg;
             Bop (Ointconst primitives.RETRET) [] ret_id_reg],
            Breturn ret_id_reg))
 

@@ -1918,15 +1918,20 @@ Proof.
                eapply agree_transfer; eauto. simpl. right. left. auto. eapply reg_live_agree; eauto.
 
       * repeat sdo_ok. inv INSTR. (* Return *)
-        eapply agree_eval_reg in HDO0; eauto.
-        2: { unfold reg_live. rewrite PositiveSet.add_spec. left. auto. }
+        destruct (transf_expr e) as [op lst] eqn:TRANSF.
+        eapply agree_eval_expr in HDO0; eauto.
+        (* 2: { unfold reg_live. rewrite PositiveSet.add_spec. left. auto. } *)
         exists tt. econstructor. split.
         ** left. eapply plus_left with (t1:=E0) (t2:=E0); auto.
            { apply rtl_block_step. simpl. rewrite BLK. simpl. eauto. }
            eapply star_step with (t1:=E0) (t2:=E0); auto.
+           { apply rtl_block_step. simpl. inv H0. rewrite exec_bind2. unfold sbind2, sbind.
+             simpl. rewrite HDO0. simpl. eauto. }
+           eapply star_step with (t1:=E0) (t2:=E0); auto.
            { apply rtl_block_step. simpl. unfold ASMinterpreter.prim_sem_dec. simpl.
-             rewrite HDO0. simpl. unfold n_save. unfold sbind. eauto. }
-           simpl. eapply star_step with (t1:=E0) (t2:=E0); auto.
+             repeat rewrite exec_bind2. rewrite exec_bind. unfold sbind2, sbind. simpl.
+             rewrite Regmap.gss. simpl. eauto. }
+           eapply star_step with (t1:=E0) (t2:=E0); auto.
            { apply rtl_block_step. simpl. eauto. }
            eapply star_step with (t1:=E0) (t2:=E0); eauto.
            { apply rtl_block_step. simpl. unfold get_int_reg. rewrite Regmap.gss. simpl. eauto. }

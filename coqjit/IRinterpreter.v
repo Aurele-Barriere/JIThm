@@ -124,8 +124,8 @@ Definition ir_int_step (is:ir_state) : free (trace * itret checkpoint ir_state) 
           do argvals <<- fret' (eval_list_reg args rm);
           fret (E0, Done (C_Call (ir_call fid argvals)))
               
-      | Return retreg =>
-        do retval <<- fret' (eval_reg retreg rm);
+      | Return ex =>
+        do retval <<- fret' (eval_expr ex rm);
           fret (E0, Done (C_Return (ir_ret retval)))
 
       | MemSet adreg valreg next =>

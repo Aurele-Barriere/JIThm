@@ -15,9 +15,8 @@ EndFunction
 Function Fun2:
 Parameters: (reg1)
 Version: [Entry: lbl1]
-<lbl1> reg2 <- Mult reg1 reg1 lbl2
-<lbl2> Print reg2 lbl3
-<lbl3> Return reg2
+<lbl1> Print (Mult reg1 reg1) lbl2
+<lbl2> Return (Mult reg1 reg1)
 EndVersion
 EndFunction
 

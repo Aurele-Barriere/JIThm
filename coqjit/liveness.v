@@ -171,8 +171,8 @@ Definition live_dr_transf
     | Call f args retreg next =>
       reg_list_live args (reg_dead retreg after)
     | Cond r tr fl => reg_live r after
-    | Return r =>
-      reg_live r after
+    | Return e =>
+      expr_live e after
     | Op r ex next =>
       expr_live ex (reg_dead r after)
     | Assume r tgt vm next =>

@@ -71,7 +71,7 @@ instruction:
     {IRast.Aop (r,e,l)}
   | r=REG ARROW CALL f=FID LPAR le=list_reg RPAR l=LBL
     {IRast.Acall (f,le,r,l)}
-  | IRETURN e=reg
+  | IRETURN e=expr
     {IRast.Areturn e}
   | COND e=reg l1=LBL l2=LBL
     {IRast.Acond (e,l1,l2)}

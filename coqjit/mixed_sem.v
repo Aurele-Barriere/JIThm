@@ -288,9 +288,9 @@ Inductive input_step : program -> input_state -> Events.trace -> input_state -> 
       input_step p (Callstate fid argvals stk mem) E0
                  (State (current_version func, ver_entry (current_version func), newrm) stk mem)
 | input_Return:
-    forall p v pc rm r retval stk mem
-      (CODE: (ver_code v) # pc = Some (Return r))
-      (EVAL: eval_reg r rm = OK retval),
+    forall p v pc rm e retval stk mem
+      (CODE: (ver_code v) # pc = Some (Return e))
+      (EVAL: eval_expr e rm = OK retval),
       input_step p (State (v, pc, rm) stk mem) E0 (Returnstate retval stk mem)
 | input_Returnstep:
     forall p retreg callee_v callee_next callee_rm retval stk mem,
