@@ -139,8 +139,8 @@ Definition ir_int_step (is:ir_state) : free (trace * itret checkpoint ir_state) 
           do res <<- fprim(Prim_MemGet ad);
           fret (E0, Halt (v, next, rm # dstreg <- res))
                
-      | Assume r (ftgt, ltgt) vm next =>
-        do guard <<- fret' (eval_reg r rm);
+      | Assume guard (ftgt, ltgt) vm next =>
+        do guard <<- fret' (eval_expr guard rm);
           match (bool_of_int guard) with
           | true => fret (E0, Halt (v, next, rm)) (* we pass the test, going to next label *)
           | false =>

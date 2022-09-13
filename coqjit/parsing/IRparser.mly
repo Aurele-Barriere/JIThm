@@ -81,7 +81,7 @@ instruction:
     {IRast.Amemget (r1,r2,l)}
   | PRINT e=expr l=LBL
     {IRast.Aprint (e,l)}
-  | ASSUME LPAR guard=reg RPAR t=target LBRACE vm=varmap RBRACE next=LBL
+  | ASSUME LPAR guard=expr RPAR t=target LBRACE vm=varmap RBRACE next=LBL
     {IRast.Aassume (guard,t,vm,next)}
 
 node:

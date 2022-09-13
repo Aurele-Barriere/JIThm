@@ -33,13 +33,14 @@ Inductive exit_instr: Type :=
 
 (* Blocks that we generate that correspond to our IR instructions *)
 (* Either Basic blocks: sequential instructions ending in an exit_instr *)
-(* Or a Conditional block: either the condition evaluates to TRUE, then we go to the next label  *)
+(* Or a Conditional block: first, an instruction to evaluate the assume guard
+   then, a condition. either the condition evaluates to TRUE, then we go to the next label  *)
 (* And if false we go through another basic block: the DEOPT branch *)
 Definition basic_block : Type := list block_instr * exit_instr.
 
 Inductive block : Type :=
 | Bblock : basic_block -> block
-| Cblock : Op.condition -> list reg -> label -> basic_block -> block.
+| Cblock : block_instr -> Op.condition -> list reg -> label -> basic_block -> block.
                                  
 
 (* Blocks are indexed by labels *)

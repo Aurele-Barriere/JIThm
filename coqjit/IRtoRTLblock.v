@@ -250,8 +250,9 @@ Definition instr_to_block (i:IR.instruction) (live:live_abs_state) (def:def_abs_
     OK (Bblock ([Bcall EF_memget [shift_reg adreg] (shift_reg dstreg)], Bnop next))
           
   | Assume guard tgt vm next =>
-    do deopt_blk <- deopt_block tgt vm;
-      OK (Cblock (Ccompimm Ceq Int.zero) [shift_reg guard] next deopt_blk)
+      do deopt_blk <- deopt_block tgt vm;
+      let (guardop, guardlst) := transf_expr guard in
+      OK (Cblock (Bop guardop guardlst guard_reg) (Ccompimm Ceq Int.zero) [guard_reg] next deopt_blk)
   end.
 
 

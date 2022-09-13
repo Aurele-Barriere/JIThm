@@ -65,7 +65,7 @@ Inductive instruction: Type :=
 | MemSet: reg -> reg -> label -> instruction (* 1st reg: address, 2nd reg: value *)
 | MemGet: reg -> reg -> label -> instruction (* 1st reg: dst, 2nd reg: address *)
 (* Speculation *)
-| Assume: reg -> deopt_target -> varmap -> label -> instruction
+| Assume: expr -> deopt_target -> varmap -> label -> instruction
 (* no synthesizing of extra frames for now *).
 
 

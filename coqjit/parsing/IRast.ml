@@ -54,7 +54,7 @@ type ainstruction =
   | Aop of areg * aexpr * alabel
   | Amemset of areg * areg * alabel
   | Amemget of areg * areg * alabel
-  | Aassume of areg * adeopt_target * avarmap * alabel
+  | Aassume of aexpr * adeopt_target * avarmap * alabel
        
 type anode = alabel * ainstruction
 
@@ -129,7 +129,7 @@ let convert_instr (ai:ainstruction): instruction =
   | Aop (r, e, l) -> Op (convert_reg r, convert_expr e, convert_lbl l)
   | Amemset (r1, r2, l) -> MemSet (convert_reg r1, convert_reg r2, convert_lbl l)
   | Amemget (r1, r2, l) -> MemGet (convert_reg r1, convert_reg r2, convert_lbl l)
-  | Aassume (r, tgt, vm, l) -> Assume (convert_reg r, convert_target tgt, convert_varmap vm, convert_lbl l)
+  | Aassume (guard, tgt, vm, l) -> Assume (convert_expr guard, convert_target tgt, convert_varmap vm, convert_lbl l)
 
 
 let rec convert_code (anl:anode list): code =

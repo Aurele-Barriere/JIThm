@@ -37,16 +37,21 @@ Definition transf_basic_block (c: res (RTL.code * node)) (bb: basic_block): res 
   let c' :=  List.fold_left transf_block_instr instrs c in
   transf_exit_instr c' exit.
 
+
 Definition transf_block (c: res (RTL.code * node)) (lbl: node) (b: block): res (RTL.code * node) :=
   match b with
   | Bblock bb =>
       do (rtlc, next) <- c;
       let rtlc' := PTree.set lbl (Inop next) rtlc in
       transf_basic_block (OK (rtlc', next)) bb
-  | Cblock op args if_true bb =>
-      do (rtlc, next) <- c;      
-      let rtlc' := PTree.set lbl (Icond op args next if_true ) rtlc in
-      transf_basic_block (OK (rtlc', next)) bb
+  | Cblock binstr op args if_true bb =>
+      do (rtlc, next) <- c;
+      (* evaluating the guard, pointing to the fresh label where the condition will be *)
+      let rtlc' := PTree.set lbl (basic_transf_block_instr binstr next) rtlc in
+      (* doing the branch, using a fresh label. The deopt label is now at Pos.succ next, the new fresh label *)
+      let rtlc'' := PTree.set next (Icond op args (Pos.succ next) if_true) rtlc' in
+      (* Enoding the deopt basic_block, starting at a fresh label *)
+      transf_basic_block (OK (rtlc'', Pos.succ next)) bb
   end.
 
 Definition flatten (rtlb:RTLblockfun) : res RTLfun :=

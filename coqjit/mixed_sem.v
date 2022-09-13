@@ -72,7 +72,7 @@ Definition block_step (rtlblock:RTLblockfun) (bs:block_state) : free (trace * bl
         do (t, rs') <<- exec_block_instr bi rs;
         fret (t, BState (Bblock (blkis',exiti)) rs') (* peeling off 1 block instruction *)
       end
-    | Cblock guard lst next bb =>
+    | Cblock binstr guard lst next bb =>
       do b <<- try_option (block_eval_condition guard (rs ## lst)) "Wrong Cond";
         match b with
         | false => fret (E0, BPF next rs)
