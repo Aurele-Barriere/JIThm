@@ -147,6 +147,9 @@ Definition ir_int_step (is:ir_state) : free (trace * itret checkpoint ir_state) 
             do newrm <<- fret' (update_regmap vm rm);
               fret (E0, Done (C_Deopt (ir_deopt ftgt ltgt newrm)))
           end
+      | Anchor (ftgt, ltgt) vm next =>
+          (* Anchors are just used temporary by the middle-end but should never be executed by the JIT *)
+          ferror ((MSG "Anchor should not be executed")::nil)
       end
   end.
 

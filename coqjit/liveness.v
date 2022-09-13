@@ -176,7 +176,9 @@ Definition live_dr_transf
     | Op r ex next =>
       expr_live ex (reg_dead r after)
     | Assume guard tgt vm next =>
-      expr_live guard (varmap_live vm after)
+        expr_live guard (varmap_live vm after)
+    | Anchor tgt vm next =>
+        varmap_live vm after
     end
   end.
       

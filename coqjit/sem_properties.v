@@ -107,6 +107,7 @@ Proof.
   destruct i; inv STEP; repeat sdo_ok; auto.
   destruct (bool_of_int i); inv H0; auto.
   destruct d. repeat sdo_ok. destruct (bool_of_int i); repeat sdo_ok; auto.
+  destruct d. inv H0.
 Qed.
 
 Lemma single_ir:
@@ -119,6 +120,7 @@ Proof.
   destruct i; inv HDO; repeat sdo_ok; auto.
   destruct (bool_of_int i); inv H0; auto.
   destruct d. repeat sdo_ok. destruct (bool_of_int i); repeat sdo_ok; auto.
+  destruct d. inv H0.
 Qed.
 
 Lemma single_block_instr:
@@ -183,6 +185,7 @@ Proof.
   { unfold n_memget in HDO1. destruct (Integers.Int.lt i0 mem_size); inv HDO1.
     destruct ((state_mem mut1) # (pos_of_int i0)); inv H0. auto. }
   destruct d. repeat sdo_ok. destruct (bool_of_int i0); repeat sdo_ok; auto.
+  destruct d. inv H.
 Qed.
 
 
@@ -471,7 +474,4 @@ Proof.
   - intros s r1 r2 H H0. inv H. inv H0. auto.
 Qed.
 (* Proving determinate is useful to get forward to backward *)
-(* However, I'm worried that this won't allow the mixed_semantic to have non-determinism *)
-(* This non-determinism could be useful if we want to add Anchors later on *)
-(* Solution: We could have separate languages, one with anchors for the middle-end, and one without for the backend *)
-
+(* Note that this is on mixed semantics, where Anchors are blocking *)

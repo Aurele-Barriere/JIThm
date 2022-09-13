@@ -66,7 +66,8 @@ Inductive instruction: Type :=
 | MemGet: reg -> reg -> label -> instruction (* 1st reg: dst, 2nd reg: address *)
 (* Speculation *)
 | Assume: expr -> deopt_target -> varmap -> label -> instruction
-(* no synthesizing of extra frames for now *).
+(* no synthesizing of extra frames for now *)
+| Anchor: deopt_target -> varmap -> label -> instruction. 
 
 
 Definition code: Type := PTree.t instruction.
@@ -118,6 +119,8 @@ Record program: Type := mk_program {
   prog_funlist : PTree.t function;
 }.
 
+
+
 (** * Program manipulation  *)
 Definition successors (instr:instruction) : list label :=
   match instr with
@@ -130,6 +133,7 @@ Definition successors (instr:instruction) : list label :=
   | MemSet _ _ next => next::nil
   | MemGet _ _ next => next::nil
   | Assume _ _ _ next => next::nil
+  | Anchor _ _ next => next::nil
   end.
 
 Definition current_version (f:function): version :=

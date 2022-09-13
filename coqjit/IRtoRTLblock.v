@@ -253,6 +253,8 @@ Definition instr_to_block (i:IR.instruction) (live:live_abs_state) (def:def_abs_
       do deopt_blk <- deopt_block tgt vm;
       let (guardop, guardlst) := transf_expr guard in
       OK (Cblock guardop guardlst next deopt_blk)
+
+  | Anchor _ _ _ => Error ((MSG "Anchors shouldn't be compiled")::nil)
   end.
 
 

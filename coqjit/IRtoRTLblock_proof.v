@@ -2097,6 +2097,7 @@ Proof.
                  rewrite Integers.Int.eq_true. eauto. intros H. inv H. intros H. inv H. }
            *** simpl. apply match_deopt; auto.
                apply int_nat_correct in HDO4. rewrite HDO4. eapply eval_varmap_size; eauto.
+      * destruct d. inv H0.     (* outside the middle-end, Anchors are blocking *)
                
     + inv STEP.                 (* match_call *)
       * simpl in CALLEE. inv CALLEE. simpl in ARGS0. inv ARGS0.

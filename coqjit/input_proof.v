@@ -255,4 +255,5 @@ Proof.
         ** repeat sdo_ok. simpl. exists (Deoptstate ftgt ltgt r stk (state_mem ms1)). split.
            *** left. eapply plus_one. eapply input_Assume_fails; eauto.
            *** constructor; auto.
+      * destruct d. inv HDO.    (* Anchors are blocking outside of the middle-end *)
 Qed.
