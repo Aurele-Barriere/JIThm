@@ -21,6 +21,7 @@ Require Import optimizer.
 Require Import jit.
 Require Import Values.
 Require Import Op.
+Require Import IRtoRTLblock.
 
 Definition pc_cond (b:bool) (tr fl:label) : label :=
   if b then tr else fl.
@@ -77,12 +78,15 @@ Definition block_step (rtlblock:RTLblockfun) (bs:block_state) : free (trace * bl
         do v <<- try_option (block_eval_operation guardop (rs ## guardlst)) "Wrong Guard evaluation";
         do b <<- try_option (block_eval_condition (Ccompimm Ceq Int.zero) (v::nil)) "Wrong Deopt Condition";
         match b with
-        | false => fret (E0, BPF next rs)
-        | true => fret (E0, BState (Bblock bb) rs) (* heading into the deopt branch *)
+        | false => fret (E0, BPF next (Registers.Regmap.set guard_reg v rs))
+        | true => fret (E0, BState (Bblock bb) (Registers.Regmap.set guard_reg v rs)) (* heading into the deopt branch *)
         end   
     end
   | BFinal i => ferror (MSG "Final RTLblock state"::nil)
   end.
+(* In the Cblock semantics, we did a little trick: we set the value of the guard_reg, a dedicated register *)
+(* This allows the flattening invariant to have equal regmaps between RTL and RTLblock, *)
+(* Since the Cblock is transformed to an instruction that evaluates the condition and puts the result in guard_reg *)
 
 (** * Mixed Semantics  *)
                      

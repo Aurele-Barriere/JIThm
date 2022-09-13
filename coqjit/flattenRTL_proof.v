@@ -15,6 +15,9 @@ Require Import backend.
 Require Import Globalenvs.
 Require Import Values.
 Require Import Integers.
+Require Import IRtoRTLblock.
+Require Import Op.
+Require Import Integers.
 
 (** * Simple lemmas *)
 Lemma same_id:
@@ -68,6 +71,14 @@ Lemma succ_le:
     (p <= l)%positive.
 Proof.
   intros p l H. eapply Pos.le_trans; eauto. apply Pos.lt_le_incl. apply Pos.lt_succ_diag_r.
+Qed.
+
+Lemma succ_le_lt:
+  forall p l,
+    (Pos.succ p <= l)%positive ->
+    (p < l)%positive.
+Proof.
+  lia.
 Qed.
 
 Lemma le_succ:
@@ -135,8 +146,9 @@ Inductive unf_block: RTL.code -> RTLblock.block -> positive -> Prop :=
                 (NOP: rtlc # pc = Some (Inop next)),
     unf_block rtlc (Bblock bb) pc
 | unf_cblock: forall rtlc pc op args iftrue bb next
-                (BB: unf_bb rtlc bb next)
-                (COND: rtlc # pc = Some (Icond op args next iftrue)),
+                (BB: unf_bb rtlc bb (Pos.succ next))
+                (EVAL: rtlc # pc = Some (Iop op args guard_reg next))
+                (COND: rtlc # next = Some (Icond (Ccompimm Ceq Int.zero) (guard_reg::nil) (Pos.succ next) iftrue)),
     unf_block rtlc (Cblock op args iftrue bb) pc.
 
 (** * Code Generation Invariants  *)
@@ -352,13 +364,21 @@ Proof.
     + unfold preserved_but. intros x H3 H4. apply PRES in H3 as H'. rewrite PTree.gso in H'; auto.
     + eapply unf_bblock; eauto. apply INCL. rewrite PTree.gss. auto.
   - apply tbb_ok in H as H'. destruct H' as [FRESH [LT [INCL [PRES UNF]]]].
-    2: { unfold fresh; intros. rewrite PTree.gso. apply H0. auto.
-         intros EQ. subst. eapply lt_le; eauto. }
+    2: { unfold fresh; intros. apply succ_le_lt in H3. 
+         rewrite PTree.gso; try lia. rewrite PTree.gso; try lia. apply H0. lia. }
     repeat try split; auto.
+    + lia.
     + eapply included_trans; eauto. unfold included.
-      intros pc0 i H3. rewrite PTree.gso; auto. intros EQ. subst. rewrite H2 in H3. inv H3.
-    + unfold preserved_but. intros x H3 H4. apply PRES in H3 as H'. rewrite PTree.gso in H'; auto.
-    + eapply unf_cblock; eauto. apply INCL. rewrite PTree.gss. auto.
+      intros pc0 i H3.
+      rewrite PTree.gso. 2: { intros EQ. subst. rewrite H0 in H3. inv H3. lia. }
+      rewrite PTree.gso. 2: { intros EQ. subst. rewrite H3 in H2. inv H2. }
+      auto.
+    + unfold preserved_but. intros x H3 H4. assert ((x < Pos.succ fsh)%positive) by lia.
+      apply PRES in H5 as H'.
+      rewrite PTree.gso in H' by lia. rewrite PTree.gso in H' by lia. auto.
+    + eapply unf_cblock; eauto.
+      * apply INCL. rewrite PTree.gso by lia. rewrite PTree.gss. auto.
+      * apply INCL. rewrite PTree.gss. auto.
 Qed.
 
 Lemma flatten_fold_ok:
@@ -466,8 +486,9 @@ Inductive match_states (p:program) (rtlc:RTL.code): index -> mixed_sem.mixed_sta
 | ms_cblock f stk pc mrtl ge m rs next entry deoptbb cond args iftrue
     (GE: ge = Globalenvs.Genv.globalenv (make_prog rtlc entry))
     (FUN: f = make_fun rtlc entry)
-    (COND: rtlc # pc = Some (Icond cond args next iftrue))
-    (UNF: unf_bb rtlc deoptbb next):
+    (COND: rtlc # next = Some (Icond (Ccompimm Ceq Int.zero) [guard_reg] (Pos.succ next) iftrue))
+    (EVAL: rtlc # pc = Some (Iop cond args guard_reg next))
+    (UNF: unf_bb rtlc deoptbb (Pos.succ next)):
     match_states p rtlc (entry, ZERO) (Halt_Block (BState (Cblock cond args iftrue deoptbb) rs), m)
                                       (Halt_RTL ge (State nil f (Vptr stk Ptrofs.zero) pc rs mrtl), m)
 | ms_bpf f stk pc mrtl ge m rs entry
@@ -693,17 +714,25 @@ Proof.
 
   - exists (entry0, ONE). inv UNF. inv STEP. (* ms_cblock *)
     simpl in BLOCK. repeat sdo_ok.
-    eapply eval_condition_correct in HDO0; eauto.
+    eapply eval_operation_correct in HDO0; eauto.
     destruct b.
     + inv BLOCK. econstructor. split.
-      * left. apply plus_one. eapply rtl_step.
+      * left. eapply plus_two with (t1:=nil) (t2:=nil); auto.
+        { eapply rtl_step.
+          { intros H. inv H. simpl in BUILTIN. rewrite BUILTIN in EVAL. inv EVAL. }
+          eapply exec_Iop; eauto. }
+        eapply rtl_step.
         { intros H. inv H. simpl in BUILTIN. rewrite BUILTIN in COND. inv COND. }
-        eapply exec_Icond; eauto.
-      * eapply ms_block; eauto.
+        eapply exec_Icond; eauto. simpl. rewrite Registers.Regmap.gss. apply HDO1.
+      * simpl. eapply ms_block; eauto.
     + inv BLOCK. econstructor. split.
-      * left. apply plus_one. eapply rtl_step.
+      * left. eapply plus_two with (t1:=nil) (t2:=nil); auto.
+        { eapply rtl_step.
+          { intros H. inv H. simpl in BUILTIN. rewrite BUILTIN in EVAL. inv EVAL. }
+          eapply exec_Iop; eauto. }
+        eapply rtl_step.
         { intros H. inv H. simpl in BUILTIN. rewrite BUILTIN in COND. inv COND. }
-        eapply exec_Icond; eauto.
+        eapply exec_Icond; eauto. simpl. rewrite Registers.Regmap.gss. apply HDO1.
       * eapply ms_bpf; eauto.
 
   - inv STEP.                   (* ms_bpf *)
@@ -813,10 +842,12 @@ Proof.
     poseq_destr pc l.
     * rewrite PTree.gss in H. inv H. constructor.
     * rewrite PTree.gso in H; auto. apply H0 in H. auto.
-  + repeat do_ok. inv HDO. apply transf_basic_ok in H2; auto.  unfold rtl_code_wf in *. intros.
-    poseq_destr pc l.
+  + repeat do_ok. inv HDO. apply transf_basic_ok in H2; auto. unfold rtl_code_wf in *. intros.
+    poseq_destr pc f1.
     * rewrite PTree.gss in H. inv H. constructor.
-    * rewrite PTree.gso in H; auto. apply H0 in H. auto.
+    * rewrite PTree.gso in H; auto. poseq_destr pc l.
+      ** rewrite PTree.gss in H. inv H. constructor.
+      ** rewrite PTree.gso in H; auto. apply H0 in H. auto.
 Qed.
 
 

@@ -1030,6 +1030,15 @@ Proof.
   intros Heq. subst. inv H.
 Qed.
 
+Lemma same_shift_set_guard:
+  forall rs v,
+    same_shift rs (Regmap.set guard_reg v rs).
+Proof.
+  intros. unfold same_shift. intros. rewrite Regmap.gso; auto.
+  intros Heq. subst. inv H.
+Qed.
+
+
 Lemma same_shift_set:
   forall rs v r,
     (r < IRtoRTLblock.shift)%positive -> 
@@ -2032,16 +2041,16 @@ Proof.
         (* 2: { eauto. unfold expr_live. apply PositiveSet.add_spec. left. auto. } *)
         destruct (bool_of_int i) eqn:GUARD; apply agree_deopt_cond in GUARD as CEQ; inversion CEQ.
         ** inv INSTR. inv H0.   (* Assume holds: going into the rest of the function *)
-           exists tt. exists (Halt_Block (BPF l rs), mkmut stkblk top mem). split.
+           exists tt. exists (Halt_Block (BPF l (Regmap.set guard_reg (Vint i) rs)), mkmut stkblk top mem). split.
            *** left. eapply plus_left with (t1:=E0) (t2:=E0); auto.
                { apply rtl_block_step. simpl. rewrite BLK. simpl. eauto. }
                apply star_one.
                { apply rtl_block_step. simpl. repeat do_ok. rewrite TRANSF_GUARD in H0. inv H0.
-                 rewrite exec_bind. rewrite EVALRS. unfold sbind. simpl. rewrite H1. simpl. auto. }               
-           *** eapply match_block. auto.
+                 rewrite exec_bind. rewrite EVALRS. unfold sbind. simpl. rewrite H1. simpl. auto. }                          *** eapply match_block. auto.
                { eapply def_analyze_correct; eauto. simpl. left. auto.
                  unfold def_dr_transf. rewrite CODE. auto. }
                eapply agree_transfer; eauto. simpl. left. auto.
+               apply agree_guard with (v:=Vint i) in AGREE.
                eapply varmap_live_agree. eapply expr_live_agree. eauto.
         ** repeat sdo_ok. inv INSTR. repeat do_ok.
            rewrite TRANSF_GUARD in H2. inv H2.
@@ -2051,7 +2060,11 @@ Proof.
            unfold generate_varmap in HDO2. repeat do_ok.
            exploit agree_varmap; eauto.
            { eapply expr_live_agree; eauto. } intros [li [EVI CONS]].
-           exploit generate_pushvm_star; eauto. intros [rs' [STAR SHIFT]].
+           exploit generate_pushvm_star.
+           { apply HDO. }
+           { eapply same_shift_varmap with (rs2:=Regmap.set guard_reg (Vint i) rs); [|eauto].
+             apply same_shift_set_guard. }
+           intros [rs' [STAR SHIFT]].
            exists tt. econstructor. split.
            *** left. eapply plus_left with (t1:=E0) (t2:=E0); auto.
                { apply rtl_block_step. simpl. rewrite BLK. simpl. eauto. } (* fetching *)
