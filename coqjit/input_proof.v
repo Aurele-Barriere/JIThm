@@ -252,7 +252,7 @@ Proof.
         ** exists (State (v, l, rm) stk (state_mem ms1)). split.
            *** left. apply plus_one. eapply input_Assume_holds; eauto.
            *** constructor; auto.
-        ** repeat sdo_ok. simpl. exists (Deoptstate ftgt ltgt r0 stk (state_mem ms1)). split.
+        ** repeat sdo_ok. simpl. exists (Deoptstate ftgt ltgt r stk (state_mem ms1)). split.
            *** left. eapply plus_one. eapply input_Assume_fails; eauto.
            *** constructor; auto.
 Qed.

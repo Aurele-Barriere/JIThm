@@ -36,11 +36,13 @@ Inductive exit_instr: Type :=
 (* Or a Conditional block: first, an instruction to evaluate the assume guard
    then, a condition. either the condition evaluates to TRUE, then we go to the next label  *)
 (* And if false we go through another basic block: the DEOPT branch *)
+(* NEW version of the Cblock *)
+(* Now, we include the operation and the list of registers that correspond to evaluating the guard expression *)
 Definition basic_block : Type := list block_instr * exit_instr.
 
 Inductive block : Type :=
 | Bblock : basic_block -> block
-| Cblock : block_instr -> Op.condition -> list reg -> label -> basic_block -> block.
+| Cblock : Op.operation -> list reg -> label -> basic_block -> block.
                                  
 
 (* Blocks are indexed by labels *)

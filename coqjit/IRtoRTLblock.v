@@ -252,7 +252,7 @@ Definition instr_to_block (i:IR.instruction) (live:live_abs_state) (def:def_abs_
   | Assume guard tgt vm next =>
       do deopt_blk <- deopt_block tgt vm;
       let (guardop, guardlst) := transf_expr guard in
-      OK (Cblock (Bop guardop guardlst guard_reg) (Ccompimm Ceq Int.zero) [guard_reg] next deopt_blk)
+      OK (Cblock guardop guardlst next deopt_blk)
   end.
 
 

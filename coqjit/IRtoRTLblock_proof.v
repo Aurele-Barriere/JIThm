@@ -576,6 +576,19 @@ Proof.
   apply H. auto.
 Qed.
 
+
+Lemma agree_guard:
+  forall rm rs live v,
+    agree rm rs live ->
+    agree rm (Registers.Regmap.set guard_reg v rs) live.
+Proof.
+  intros rm rs live v H. unfold agree in *. intros r H0.
+  rewrite Regmap.gso.
+  2: { unfold shift_reg. unfold void_reg, IRtoRTLblock.shift. intros HEQ.
+       destruct r; inv HEQ. destruct r; inv H2. destruct r; inv H3. }
+  apply H. auto.
+Qed.
+
 Lemma agree_cond:
   forall rm rs live r i b,
     agree rm rs live ->
@@ -594,6 +607,18 @@ Proof.
     unfold Integers.Int.eq. simpl. rewrite Integers.Int.unsigned_zero. auto.
   - simpl. destruct i. simpl in INTVAL. subst.
     unfold Integers.Int.eq. simpl. rewrite Integers.Int.unsigned_zero. auto.
+Qed.
+
+Lemma agree_deopt_cond:
+  forall i b,
+    bool_of_int i = b ->
+    (Val.cmp_bool Integers.Ceq (Vint i) (Vint Integers.Int.zero)) = Some (negb b).
+Proof.
+  intros i b H. unfold bool_of_int in H. unfold Val.cmp_bool.
+  destruct (Integers.Int.intval i) eqn:INTVAL; subst; simpl.
+  - destruct i. simpl in INTVAL. subst. unfold Integers.Int.eq. rewrite Integers.Int.unsigned_zero. auto.
+  - destruct i. simpl in INTVAL. subst. unfold Integers.Int.eq. rewrite Integers.Int.unsigned_zero. auto.
+  - destruct i. simpl in INTVAL. subst. unfold Integers.Int.eq. rewrite Integers.Int.unsigned_zero. auto.
 Qed.
 
 
@@ -2002,35 +2027,36 @@ Proof.
            apply agree_insert_dead. eapply reg_live_agree. eauto.
 
       * destruct d as [ftgt ltgt]. repeat sdo_ok. (* Assume *)
-        eapply agree_eval_reg in HDO0 as EVALRS; eauto.
-        2: { unfold reg_live. apply PositiveSet.add_spec. left. auto. }
-        destruct (bool_of_int i) eqn:GUARD.
+        destruct (transf_expr e) as [guardop guardlst] eqn:TRANSF_GUARD.
+        eapply agree_eval_expr in HDO0 as EVALRS; eauto.
+        (* 2: { eauto. unfold expr_live. apply PositiveSet.add_spec. left. auto. } *)
+        destruct (bool_of_int i) eqn:GUARD; apply agree_deopt_cond in GUARD as CEQ; inversion CEQ.
         ** inv INSTR. inv H0.   (* Assume holds: going into the rest of the function *)
            exists tt. exists (Halt_Block (BPF l rs), mkmut stkblk top mem). split.
            *** left. eapply plus_left with (t1:=E0) (t2:=E0); auto.
                { apply rtl_block_step. simpl. rewrite BLK. simpl. eauto. }
                apply star_one.
-               { apply rtl_block_step. simpl. eapply agree_cond in GUARD; eauto.
-                 2: { unfold reg_live. apply PositiveSet.add_spec. left. auto. }
-                 repeat do_ok. simpl. rewrite GUARD. simpl. eauto. }
+               { apply rtl_block_step. simpl. repeat do_ok. rewrite TRANSF_GUARD in H0. inv H0.
+                 rewrite exec_bind. rewrite EVALRS. unfold sbind. simpl. rewrite H1. simpl. auto. }               
            *** eapply match_block. auto.
                { eapply def_analyze_correct; eauto. simpl. left. auto.
                  unfold def_dr_transf. rewrite CODE. auto. }
                eapply agree_transfer; eauto. simpl. left. auto.
-               eapply varmap_live_agree. eapply reg_live_agree. eauto.
+               eapply varmap_live_agree. eapply expr_live_agree. eauto.
         ** repeat sdo_ok. inv INSTR. repeat do_ok.
+           rewrite TRANSF_GUARD in H2. inv H2.
            apply int_pos_correct in HDO. apply int_pos_correct in HDO3.
-           eapply agree_cond in GUARD; eauto.
-           2: { unfold reg_live. rewrite PositiveSet.add_spec. left. auto. }
+           (* eapply agree_cond in GUARD; eauto. *)
+           (* 2: { unfold reg_live. rewrite PositiveSet.add_spec. left. auto. } *)
            unfold generate_varmap in HDO2. repeat do_ok.
            exploit agree_varmap; eauto.
-           { eapply reg_live_agree; eauto. } intros [li [EVI CONS]].
+           { eapply expr_live_agree; eauto. } intros [li [EVI CONS]].
            exploit generate_pushvm_star; eauto. intros [rs' [STAR SHIFT]].
            exists tt. econstructor. split.
            *** left. eapply plus_left with (t1:=E0) (t2:=E0); auto.
                { apply rtl_block_step. simpl. rewrite BLK. simpl. eauto. } (* fetching *)
                eapply star_step with (t1:=E0) (t2:=E0); auto.
-               { apply rtl_block_step. simpl. rewrite GUARD. simpl. eauto. } (* going into deopt *)
+               { apply rtl_block_step. simpl. rewrite EVALRS. simpl. rewrite H1. simpl. eauto.  } (* going into deopt *)
                rewrite <- app_assoc. eapply star_trans with (t1:=E0) (t2:=E0); auto. 
                { apply STAR. }  (* pushing varmap *)
                simpl. eapply star_step with (t1:=E0) (t2:=E0); auto.

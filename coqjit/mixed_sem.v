@@ -20,6 +20,7 @@ Require Import customSmallstep.
 Require Import optimizer.
 Require Import jit.
 Require Import Values.
+Require Import Op.
 
 Definition pc_cond (b:bool) (tr fl:label) : label :=
   if b then tr else fl.
@@ -72,8 +73,9 @@ Definition block_step (rtlblock:RTLblockfun) (bs:block_state) : free (trace * bl
         do (t, rs') <<- exec_block_instr bi rs;
         fret (t, BState (Bblock (blkis',exiti)) rs') (* peeling off 1 block instruction *)
       end
-    | Cblock binstr guard lst next bb =>
-      do b <<- try_option (block_eval_condition guard (rs ## lst)) "Wrong Cond";
+    | Cblock guardop guardlst next bb =>
+        do v <<- try_option (block_eval_operation guardop (rs ## guardlst)) "Wrong Guard evaluation";
+        do b <<- try_option (block_eval_condition (Ccompimm Ceq Int.zero) (v::nil)) "Wrong Deopt Condition";
         match b with
         | false => fret (E0, BPF next rs)
         | true => fret (E0, BState (Bblock bb) rs) (* heading into the deopt branch *)
@@ -304,13 +306,13 @@ Inductive input_step : program -> input_state -> Events.trace -> input_state -> 
 | input_Assume_holds:
     forall p v pc rm stk e ftgt ltgt vm next guard mem
       (CODE: (ver_code v) # pc = Some (Assume e (ftgt, ltgt) vm next))
-      (EVAL: eval_reg e rm = OK guard)
+      (EVAL: eval_expr e rm = OK guard)
       (GUARD_OK: bool_of_int guard = true),
       input_step p (State (v, pc, rm) stk mem) E0 (State (v, next, rm) stk mem)
 | input_Assume_fails:
     forall p v pc rm stk e ftgt ltgt vm next guard newrm mem
       (CODE: (ver_code v) # pc = Some (Assume e (ftgt, ltgt) vm next))
-      (EVAL: eval_reg e rm = OK guard)
+      (EVAL: eval_expr e rm = OK guard)
       (GUARD_OK: bool_of_int guard = false)
       (BUILD: update_regmap vm rm = OK newrm),
       input_step p (State (v, pc, rm) stk mem) E0 (Deoptstate ftgt ltgt newrm stk mem)

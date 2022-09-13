@@ -7,6 +7,9 @@ Require Import RTL.
 Require Import RTLblock.
 Require Import IR.
 Require Import primitives.
+Require Import IRtoRTLblock.
+Require Import Op.
+Require Import Integers.
 
 Definition basic_transf_block_instr (bi: block_instr) (succ:node) : RTL.instruction :=
   match bi with
@@ -44,12 +47,12 @@ Definition transf_block (c: res (RTL.code * node)) (lbl: node) (b: block): res (
       do (rtlc, next) <- c;
       let rtlc' := PTree.set lbl (Inop next) rtlc in
       transf_basic_block (OK (rtlc', next)) bb
-  | Cblock binstr op args if_true bb =>
+  | Cblock guardop guardlst if_true bb =>
       do (rtlc, next) <- c;
       (* evaluating the guard, pointing to the fresh label where the condition will be *)
-      let rtlc' := PTree.set lbl (basic_transf_block_instr binstr next) rtlc in
+      let rtlc' := PTree.set lbl (Iop guardop guardlst guard_reg next) rtlc in
       (* doing the branch, using a fresh label. The deopt label is now at Pos.succ next, the new fresh label *)
-      let rtlc'' := PTree.set next (Icond op args (Pos.succ next) if_true) rtlc' in
+      let rtlc'' := PTree.set next (Icond (Ccompimm Ceq Int.zero) [guard_reg] (Pos.succ next) if_true) rtlc' in
       (* Enoding the deopt basic_block, starting at a fresh label *)
       transf_basic_block (OK (rtlc'', Pos.succ next)) bb
   end.
