@@ -236,6 +236,54 @@ Inductive final_mixed_state (p:program) : mixed_state -> int -> Prop :=
 Definition mixed_sem (p:program) (rtl:option (RTLfun + RTLblockfun)) (nc:asm_codes): semantics :=
   Semantics_gen (mixed_step p rtl) (init_mixed_state p nc) (final_mixed_state p) nc.
 
+
+(** * Middle Semantics  *)
+(* Semantics used for the correction of the middle-end compiler, where Anchors have behaviors *)
+
+Inductive middle_step: program -> option (RTLfun + RTLblockfun) -> asm_codes -> mixed_state -> Events.trace -> mixed_state -> Prop :=
+| mid_mix: forall p rtl nc ms1 t ms2
+    (STEP: mixed_step p rtl nc ms1 t ms2),
+    middle_step p rtl nc ms1 t ms2
+(* Non-Deterministic and Determinate Anchor Semantics *)
+| mid_go_on:
+  forall p rtl nc v pc rm newrm ftgt ltgt vm next ms 
+    (ANCHOR: (ver_code v) # pc = Some (Anchor (ftgt, ltgt) vm next))
+    (BUILD: update_regmap vm rm = OK newrm), (* deopt should be possible, even to go on *)
+    middle_step p rtl nc (Halt_IR (v, pc, rm), ms) E0 (Halt_IR (v, next, rm), ms)
+| mid_deopt:
+  forall p rtl nc v pc rm newrm ftgt ltgt vm next ms
+    (ANCHOR: (ver_code v) # pc = Some (Anchor (ftgt, ltgt) vm next))
+    (BUILD: update_regmap vm rm = OK newrm),
+    middle_step p rtl nc (Halt_IR (v, pc, rm), ms) E0 (S_Deopt (ir_deopt ftgt ltgt newrm), ms).
+
+Definition middle_sem (p:program) (rtl:option (RTLfun + RTLblockfun)) (nc:asm_codes): semantics :=
+  Semantics_gen (middle_step p rtl) (init_mixed_state p nc) (final_mixed_state p) nc.
+
+
+(** * Loud Semantics  *)
+(* Non-deterministic but Determinate semantics used by the middle-end to reuse forward-to-backward reasoning *)
+
+Inductive loud_step: program -> option (RTLfun + RTLblockfun) -> asm_codes -> mixed_state -> Events.trace -> mixed_state -> Prop :=
+| loud_mix: forall p rtl nc ms1 t ms2
+    (STEP: mixed_step p rtl nc ms1 t ms2),
+    loud_step p rtl nc ms1 t ms2
+(* Non-Deterministic and Determinate Anchor Semantics *)
+| loud_go_on:
+  forall p rtl nc v pc rm newrm ftgt ltgt vm next ms 
+    (ANCHOR: (ver_code v) # pc = Some (Anchor (ftgt, ltgt) vm next))
+    (BUILD: update_regmap vm rm = OK newrm), (* deopt should be possible, even to go on *)
+    loud_step p rtl nc (Halt_IR (v, pc, rm), ms) [ev_go_on] (Halt_IR (v, next, rm), ms)
+| loud_deopt:
+  forall p rtl nc v pc rm newrm ftgt ltgt vm next ms
+    (ANCHOR: (ver_code v) # pc = Some (Anchor (ftgt, ltgt) vm next))
+    (BUILD: update_regmap vm rm = OK newrm),
+    loud_step p rtl nc (Halt_IR (v, pc, rm), ms) [ev_deopt] (S_Deopt (ir_deopt ftgt ltgt newrm), ms).
+
+Definition loud_sem (p:program) (rtl:option (RTLfun + RTLblockfun)) (nc:asm_codes): semantics :=
+  Semantics_gen (loud_step p rtl) (init_mixed_state p nc) (final_mixed_state p) nc.
+
+
+
 (** * Input Semantics *)
 (* the semantics for the input program. Only IR, no native code, no monad state *)
 

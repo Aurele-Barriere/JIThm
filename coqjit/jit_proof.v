@@ -129,21 +129,51 @@ Proof.
     simpl in EXEC_END. repeat sdo_ok. destruct p0. simpl in EXEC_END. destruct i0; inv EXEC_END. eauto.    
 Qed.
 
-Lemma match_single:
-  forall t,
-    (Datatypes.length t <= 1)%nat ->
-    match_traces t t.
+Lemma jit_events:
+  forall S (impl:monad_impl S) p t s s',
+    Step (unf_sem jit_prog impl native_call_spec (init_jit_state p) final_jit_state) s t s' ->
+    t = nil \/ exists v, t = (print_event v).
 Proof.
-  intros t H. destruct t as [|a [|b c]]; try constructor.
-  simpl in H. lia.
+  intros S impl p t s s' H. unfold jit_prog in H. simpl in H.
+  inv H; auto; try inv ATOMIC; try destruct s1; try inv RUN; try inv H0; try eT; repeat sdo_ok; auto.
+  - destruct (next_status (profiler (prof_state j) c) c (nb_optim j)); repeat sdo_ok; auto.
+  - destruct c; repeat sdo_ok; auto. simpl in EXEC_STEP. repeat sdo_ok.
+    destruct c; repeat sdo_ok; auto.
+    simpl in EXEC_STEP. repeat sdo_ok. destruct c; repeat sdo_ok; auto.
+    simpl in EXEC_STEP. repeat sdo_ok. destruct c; repeat sdo_ok. auto. auto.
+  - destruct c; repeat sdo_ok; auto.
+    + destruct c0; repeat sdo_ok; auto.
+    + destruct o; repeat sdo_ok; auto.
+      * destruct i, i0, p0, p, p0. simpl in EXEC_STEP. repeat sdo_ok. auto.
+      * simpl in EXEC_STEP. repeat sdo_ok. auto.
+  - destruct p0. simpl in EXEC_STEP. destruct i0. simpl in EXEC_STEP. inv EXEC_STEP.
+    apply ir_events in HDO. auto.
+    apply ir_events in HDO. inv EXEC_STEP. auto.
+  - inv EXEC_STEP. 
+  - destruct i1, i2. simpl in EXEC_STEP. repeat sdo_ok. destruct p0.
+    apply asm_events in HDO. inv EXEC_STEP. destruct i; inv H0; auto.
+  - destruct i1. simpl in EXEC_RET. simpl in EXEC_END. repeat sdo_ok.
+    destruct p0. apply asm_events in HDO. inv EXEC_END.
+    destruct i; inv H0; auto.
 Qed.
+
+(* Lemma match_single: *)
+(*   forall t, *)
+(*     (Datatypes.length t <= 1)%nat -> *)
+(*     match_traces t t. *)
+(* Proof. *)
+(*   intros t H. destruct t as [|a [|b c]]; try constructor. *)
+(*   simpl in H. lia. *)
+(* Qed. *)
+(* not true anymore with our new match_trace *)
   
 Lemma jit_determinacy:
   forall p mstate (i:@monad_impl mstate),
     determinate (jit_sem p i).
 Proof.
   intros p mstate i. apply Determinate.
-  - intros s t1 s1 t2 s2 H H0.
+  - intros s t1 s1 t2 s2 H H0. simpl in H, H0.
+    apply jit_events in H as T1. apply jit_events in H0 as T2.
     specialize (jit_single_events p mstate i s t1 s1 H). intros SINGLE.
     inv H; inv H0; try solve[rewrite ATOMIC in RUN; inv RUN];
       try (rewrite ATOMIC0 in ATOMIC; inv ATOMIC); 
@@ -151,12 +181,11 @@ Proof.
       try (rewrite RUN0 in RUN; inv RUN); 
       try (rewrite EXEC_END in EXEC_STEP; inv EXEC_STEP);
       try eT; subst.
-    + split; auto. apply match_single; auto.
-    (* + rewrite EXEC_STEP0 in EXEC_STEP; inv EXEC_STEP. split; auto. apply match_single. auto.; *)
+    + split; auto. destruct T1. subst. constructor. destruct H. subst. constructor. 
     + rewrite LOAD0 in LOAD. inv LOAD. split. constructor. intros. auto.
-    + split; auto. apply match_single; auto.
+    + split; auto. destruct T1. subst. constructor. destruct H. subst. constructor. 
     + rewrite EXEC_END0 in EXEC_END. inv EXEC_END. rewrite EXEC_RET0 in EXEC_RET. inv EXEC_RET. split; auto.
-      apply match_single; auto.
+      destruct T1. subst. constructor. destruct H. subst. constructor. 
   - apply jit_single_events.
   - intros s1 s2 H H0. inv H. inv H0. inv INIT. inv INIT0. auto.
   - intros s r H. inv H. inv FINAL. unfold jit_final in FINAL0.
@@ -172,7 +201,10 @@ Lemma jit_receptive:
 Proof.
   intros p mstate i. apply Receptive.
   2: { apply jit_single_events. }
-  intros s t1 s1 t2 H H0. exists s1. inv H0; auto.
+  intros s t1 s1 t2 H H0. exists s1.
+  simpl in H. apply jit_events in H as EV. destruct EV as [EV|[x EV]]; subst.
+  - inv H0. simpl. auto.
+  - inv H0. simpl. auto.
 Qed.
 
 

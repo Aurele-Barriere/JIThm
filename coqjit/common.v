@@ -3,6 +3,8 @@
 Require Export Coqlib.
 Require Export String.
 Require Export Maps.
+Require Export Events.
+
 
 (* Identifying functions and labels in our programs *)
 Definition label: Type := positive.
@@ -43,3 +45,11 @@ Require Import Events.
 
 Definition print_event (i:int) : trace :=
   (Event_annot "PRINT"%string ((EVint i)::nil))::nil.
+
+(** * Loud Events  *)
+(* The actual implementation of these doesn't matter as long as they are separate from CoreIR events *)
+Definition ev_deopt: event :=
+  Event_annot "DEOPT"%string nil.
+
+Definition ev_go_on: event :=
+  Event_annot "GO ON"%string nil.

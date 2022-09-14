@@ -22,6 +22,7 @@
 (* This file comes from commit fe51a04 in CompCert *)
 (* Getting rid of globalenvs for the JIT/IR/Mixed programs *)
 
+Require Import common.
 Require Import Relations.
 Require Import Wellfounded.
 Require Import Coqlib.
@@ -29,13 +30,19 @@ Require Import Events.
 (* Require Import Globalenvs. *)
 Require Import Integers.
 
+
 (* redefining match_traces *)
 Inductive match_traces: trace -> trace -> Prop :=
 | match_traces_E0:
     match_traces nil nil
 | match_traces_same:
     forall e,
-      match_traces (e::nil) (e::nil).
+      match_traces (e::nil) (e::nil)
+| match_traces_loud:
+  match_traces (ev_go_on::nil) (ev_deopt::nil)
+| match_traces_loud2:
+    match_traces (ev_deopt::nil) (ev_go_on::nil).
+
 
 Set Implicit Arguments.
 
