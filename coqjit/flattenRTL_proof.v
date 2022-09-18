@@ -604,7 +604,7 @@ Theorem flatten_forward:
   forall (p:program) (nc:asm_codes) (rtlb:RTLblockfun) (rtl:RTLfun)
     (NO_CONFLICT: ~ rtl_conflict (Some (inr rtlb)) nc) (* nc doesn't contain a function fid *)
     (FLATTEN: flatten rtlb = OK rtl),
-    forward_internal_simulation p p (Some (inr rtlb)) (Some (inl rtl)) nc nc.
+    forward_internal_simulation p p (Some (inr rtlb)) (Some (inl rtl)) nc nc AnchorOff AnchorOff.
 Proof.
   intros p nc rtlb rtl; intros.
   destruct rtl as [[[rtlfid rtlc] rtlentry] rtlcont].
@@ -760,7 +760,7 @@ Theorem flatten_correct:
   forall (p:program) (nc:asm_codes) (rtlb:RTLblockfun) (rtl:RTLfun)
     (NO_CONFLICT: ~ rtl_conflict (Some (inr rtlb)) nc) 
     (FLATTEN: flatten rtlb = OK rtl),
-    backward_internal_simulation p p (Some (inr rtlb)) (Some (inl rtl)) nc nc.
+    backward_internal_simulation p p (Some (inr rtlb)) (Some (inl rtl)) nc nc AnchorOff AnchorOff.
 Proof.
   intros p nc rtlb rtl NO_CONFLICT FLATTEN.
   apply forward_to_backward_simulation.

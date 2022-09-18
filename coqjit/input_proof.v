@@ -125,7 +125,7 @@ Qed.
 
 Theorem input_mixed:
   forall p,
-    backward_simulation (input_sem p) (mixed_sem p None nocode).
+    backward_simulation (input_sem p) (mixed_sem p None nocode AnchorOff).
 Proof.
   intros p. 
   eapply Backward_simulation with (bsim_match_states := match_states) (bsim_order := order); simpl in *.

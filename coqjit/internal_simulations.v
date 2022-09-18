@@ -31,7 +31,7 @@ Definition call_refl {index:Type} (match_states: index -> mixed_state -> mixed_s
 
 (** * Forward Internal Simulations between two transition semantics. *)
 (** The general form of a forward internal simulation. *)
-Record forward_internal_simulation (p1 p2:program) (rtl1 rtl2: option (RTLfun+RTLblockfun)) (nc1 nc2: asm_codes) : Type :=
+Record forward_internal_simulation (p1 p2:program) (rtl1 rtl2: option (RTLfun+RTLblockfun)) (nc1 nc2: asm_codes) (anc1 anc2: anchor_status): Type :=
   Forward_internal_simulation {
     fsim_index: Type;
     fsim_order: fsim_index -> fsim_index -> Prop;
@@ -42,10 +42,10 @@ Record forward_internal_simulation (p1 p2:program) (rtl1 rtl2: option (RTLfun+RT
       forall i s1 s2 r,
       fsim_match_states i s1 s2 -> final_mixed_state p1 s1 r -> final_mixed_state p2 s2 r;
     fsim_simulation:
-      forall s1 t s1', Step (mixed_sem p1 rtl1 nc1) s1 t s1' ->
+      forall s1 t s1', Step (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' ->
       forall i s2, fsim_match_states i s1 s2 ->
       exists i', exists s2',
-         (SPlus (mixed_sem p2 rtl2 nc2) s2 t s2' \/ (Star (mixed_sem p2 rtl2 nc2) s2 t s2' /\ fsim_order i' i))
+         (SPlus (mixed_sem p2 rtl2 nc2 anc2) s2 t s2' \/ (Star (mixed_sem p2 rtl2 nc2 anc2) s2 t s2' /\ fsim_order i' i))
       /\ fsim_match_states i' s1' s2';
   }.
 
@@ -55,10 +55,10 @@ Arguments forward_internal_simulation: clear implicits.
 (** An alternate form of the simulation diagram *)
 
 Lemma fsim_simulation':
-  forall p1 p2 rtl1 rtl2 nc1 nc2 (S: forward_internal_simulation p1 p2 rtl1 rtl2 nc1 nc2),
-  forall i s1 t s1', Step (mixed_sem p1 rtl1 nc1) s1 t s1' ->
+  forall p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 (S: forward_internal_simulation p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2),
+  forall i s1 t s1', Step (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' ->
   forall s2, S i s1 s2 ->
-  (exists i', exists s2', SPlus (mixed_sem p2 rtl2 nc2) s2 t s2' /\ S i' s1' s2')
+  (exists i', exists s2', SPlus (mixed_sem p2 rtl2 nc2 anc2) s2 t s2' /\ S i' s1' s2')
   \/ (exists i', fsim_order S i' i /\ t = E0 /\ S i' s1' s2).
 Proof.
   intros. exploit fsim_simulation; eauto.
@@ -84,7 +84,7 @@ Qed.
 (** * Backward simulations between two transition semantics. *)
 (** The general form of a backward internal simulation. *)
 (* The one used as an invariant of the JIT execution, on silent semantics *)
-Record backward_internal_simulation (p1 p2: program) (rtl1 rtl2:option (RTLfun+RTLblockfun)) (nc1 nc2: asm_codes): Type :=
+Record backward_internal_simulation (p1 p2: program) (rtl1 rtl2:option (RTLfun+RTLblockfun)) (nc1 nc2: asm_codes) (anc1 anc2:anchor_status): Type :=
   Backward_internal_simulation {
     bsim_index: Type;
     bsim_order: bsim_index -> bsim_index -> Prop;
@@ -94,27 +94,27 @@ Record backward_internal_simulation (p1 p2: program) (rtl1 rtl2:option (RTLfun+R
     bsim_match_states_refl: call_refl bsim_match_states;
     bsim_match_final_states:
       forall i s1 s2 r,
-      bsim_match_states i s1 s2 -> safe (mixed_sem p1 rtl1 nc1) s1 -> final_mixed_state p2 s2 r ->
-      exists s1', Star (mixed_sem p1 rtl1 nc1) s1 E0 s1' /\ final_mixed_state p1 s1' r;
+      bsim_match_states i s1 s2 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 -> final_mixed_state p2 s2 r ->
+      exists s1', Star (mixed_sem p1 rtl1 nc1 anc1) s1 E0 s1' /\ final_mixed_state p1 s1' r;
     bsim_progress:
       forall i s1 s2,
-      bsim_match_states i s1 s2 -> safe (mixed_sem p1 rtl1 nc1) s1 ->
+      bsim_match_states i s1 s2 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 ->
       (exists r, final_mixed_state p2 s2 r) \/
-      (exists t, exists s2', Step (mixed_sem p2 rtl2 nc2) s2 t s2');
+      (exists t, exists s2', Step (mixed_sem p2 rtl2 nc2 anc2) s2 t s2');
     bsim_simulation:
-      forall s2 t s2', Step (mixed_sem p2 rtl2 nc2) s2 t s2' ->
-      forall i s1, bsim_match_states i s1 s2 -> safe (mixed_sem p1 rtl1 nc1) s1 ->
+      forall s2 t s2', Step (mixed_sem p2 rtl2 nc2 anc2) s2 t s2' ->
+      forall i s1, bsim_match_states i s1 s2 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 ->
       exists i', exists s1',
-         (SPlus (mixed_sem p1 rtl1 nc1) s1 t s1' \/ (Star (mixed_sem p1 rtl1 nc1) s1 t s1' /\ bsim_order i' i))
+         (SPlus (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' \/ (Star (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' /\ bsim_order i' i))
       /\ bsim_match_states i' s1' s2';
   }.
 
 (** An alternate form of the simulation diagram *)
 Lemma bsim_simulation':
-  forall p1 p2 rtl1 rtl2 nc1 nc2 (S: backward_internal_simulation p1 p2 rtl1 rtl2 nc1 nc2),
-  forall i s2 t s2', Step (mixed_sem p2 rtl2 nc2) s2 t s2' ->
-  forall s1, S i s1 s2 -> safe (mixed_sem p1 rtl1 nc1) s1 ->
-  (exists i', exists s1', SPlus (mixed_sem p1 rtl1 nc1) s1 t s1' /\ S i' s1' s2')
+  forall p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 (S: backward_internal_simulation p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2),
+  forall i s2 t s2', Step (mixed_sem p2 rtl2 nc2 anc2) s2 t s2' ->
+  forall s1, S i s1 s2 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 ->
+  (exists i', exists s1', SPlus (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' /\ S i' s1' s2')
   \/ (exists i', bsim_order S i' i /\ t = E0 /\ S i' s1 s2').
 Proof.
   intros. exploit bsim_simulation; eauto.
@@ -134,26 +134,27 @@ Variable p1 p2: program.
 Variable rtl1 rtl2: option (RTLfun+RTLblockfun).
 Variable nc1: asm_codes.
 Variable nc2: asm_codes.
-Variable S: backward_internal_simulation p1 p2 rtl1 rtl2 nc1 nc2.
+Variable anc1 anc2: anchor_status.
+Variable S: backward_internal_simulation p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2.
 
 Lemma bsim_E0_star:
-  forall s2 s2', Star (mixed_sem p2 rtl2 nc2) s2 E0 s2' ->
-  forall i s1, S i s1 s2 -> safe (mixed_sem p1 rtl1 nc1) s1 ->
-  exists i', exists s1', Star (mixed_sem p1 rtl1 nc1) s1 E0 s1' /\ S i' s1' s2'.
+  forall s2 s2', Star (mixed_sem p2 rtl2 nc2 anc2) s2 E0 s2' ->
+  forall i s1, S i s1 s2 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 ->
+  exists i', exists s1', Star (mixed_sem p1 rtl1 nc1 anc1) s1 E0 s1' /\ S i' s1' s2'.
 Proof.
   intros s20 s20' STAR0. pattern s20, s20'. eapply star_E0_ind; eauto.
 (* base case *)
   intros. exists i; exists s1; split; auto. apply star_refl.
 (* inductive case *)
   intros. exploit bsim_simulation; eauto. intros [i' [s1' [A B]]].
-  assert (Star (mixed_sem p1 rtl1 nc1) s0 E0 s1'). intuition. apply plus_star; auto.
+  assert (Star (mixed_sem p1 rtl1 nc1 anc1) s0 E0 s1'). intuition. apply plus_star; auto.
   exploit H0. eauto. eapply star_safe; eauto. intros [i'' [s1'' [C D]]].
   exists i''; exists s1''; split; auto. eapply star_trans; eauto.
 Qed.
 
 Lemma bsim_safe:
   forall i s1 s2,
-  S i s1 s2 -> safe (mixed_sem p1 rtl1 nc1) s1 -> safe (mixed_sem p2 rtl2 nc2) s2.
+  S i s1 s2 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 -> safe (mixed_sem p2 rtl2 nc2 anc2) s2.
 Proof.
   intros; red; intros.
   exploit bsim_E0_star; eauto. intros [i' [s1' [A B]]].
@@ -161,9 +162,9 @@ Proof.
 Qed.
 
 Lemma bsim_E0_plus:
-  forall s2 t s2', SPlus (mixed_sem p2 rtl2 nc2) s2 t s2' -> t = E0 ->
-  forall i s1, S i s1 s2 -> safe (mixed_sem p1 rtl1 nc1) s1 ->
-     (exists i', exists s1', SPlus (mixed_sem p1 rtl1 nc1) s1 E0 s1' /\ S i' s1' s2')
+  forall s2 t s2', SPlus (mixed_sem p2 rtl2 nc2 anc2) s2 t s2' -> t = E0 ->
+  forall i s1, S i s1 s2 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 ->
+     (exists i', exists s1', SPlus (mixed_sem p1 rtl1 nc1 anc1) s1 E0 s1' /\ S i' s1' s2')
   \/ (exists i', clos_trans _ (bsim_order S) i' i /\ S i' s1 s2').
 Proof.
   induction 1 using plus_ind2; intros; subst t.
@@ -183,8 +184,8 @@ Proof.
 Qed.
 
 Lemma star_non_E0_split:
-  forall s2 t s2', Star (mixed_sem p2 rtl2 nc2) s2 t s2' -> (length t = 1)%nat ->
-  exists s2x, exists s2y, Star (mixed_sem p2 rtl2 nc2) s2 E0 s2x /\ Step (mixed_sem p2 rtl2 nc2) s2x t s2y /\ Star (mixed_sem p2 rtl2 nc2) s2y E0 s2'.
+  forall s2 t s2', Star (mixed_sem p2 rtl2 nc2 anc2) s2 t s2' -> (length t = 1)%nat ->
+  exists s2x, exists s2y, Star (mixed_sem p2 rtl2 nc2 anc2) s2 E0 s2x /\ Step (mixed_sem p2 rtl2 nc2 anc2) s2x t s2y /\ Star (mixed_sem p2 rtl2 nc2 anc2) s2y E0 s2'.
 Proof.
   induction 1; intros.
   simpl in H; discriminate.
@@ -220,9 +221,10 @@ Variable rtl1 rtl2 rtl3: option (RTLfun+RTLblockfun).
 Variable nc1: asm_codes.
 Variable nc2: asm_codes.
 Variable nc3: asm_codes.
-Hypothesis p3_single_events: single_events (mixed_sem p3 rtl3 nc3).
-Variable S12: backward_internal_simulation p1 p2 rtl1 rtl2 nc1 nc2.
-Variable S23: backward_internal_simulation p2 p3 rtl2 rtl3 nc2 nc3.
+Variable anc1 anc2 anc3: anchor_status.
+Hypothesis p3_single_events: single_events (mixed_sem p3 rtl3 nc3 anc3).
+Variable S12: backward_internal_simulation p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2.
+Variable S23: backward_internal_simulation p2 p3 rtl2 rtl3 nc2 nc3 anc2 anc3.
 
 Let bb_index : Type := (bsim_index S12 * bsim_index S23)%type.
 
@@ -231,7 +233,7 @@ Let bb_order : bb_index -> bb_index -> Prop :=
 
 Inductive bb_match_states: bb_index -> mixed_state -> mixed_state -> Prop :=
   | bb_match_later: forall i1 i2 s1 s3 s2x s2y,
-      S12 i1 s1 s2x -> Star (mixed_sem p2 rtl2 nc2) s2x E0 s2y -> S23 i2 s2y s3 ->
+      S12 i1 s1 s2x -> Star (mixed_sem p2 rtl2 nc2 anc2) s2x E0 s2y -> S23 i2 s2y s3 ->
       bb_match_states (i1, i2) s1 s3.
 
 Lemma bb_match_at: forall i1 i2 s1 s3 s2,
@@ -243,10 +245,10 @@ Qed.
 
 
 Lemma bb_simulation_base:
-  forall s3 t s3', Step (mixed_sem p3 rtl3 nc3) s3 t s3' ->
-  forall i1 s1 i2 s2, S12 i1 s1 s2 -> S23 i2 s2 s3 -> safe (mixed_sem p1 rtl1 nc1) s1 ->
+  forall s3 t s3', Step (mixed_sem p3 rtl3 nc3 anc3) s3 t s3' ->
+  forall i1 s1 i2 s2, S12 i1 s1 s2 -> S23 i2 s2 s3 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 ->
   exists i', exists s1',
-    (SPlus (mixed_sem p1 rtl1 nc1) s1 t s1' \/ (Star (mixed_sem p1 rtl1 nc1) s1 t s1' /\ bb_order i' (i1, i2)))
+    (SPlus (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' \/ (Star (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' /\ bb_order i' (i1, i2)))
     /\ bb_match_states i' s1' s3'.
 Proof.
   intros.
@@ -281,10 +283,10 @@ Proof.
 Qed.
 
 Lemma bb_simulation:
-  forall s3 t s3', Step (mixed_sem p3 rtl3 nc3) s3 t s3' ->
-  forall i s1, bb_match_states i s1 s3 -> safe (mixed_sem p1 rtl1 nc1) s1 ->
+  forall s3 t s3', Step (mixed_sem p3 rtl3 nc3 anc3) s3 t s3' ->
+  forall i s1, bb_match_states i s1 s3 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 ->
   exists i', exists s1',
-    (SPlus (mixed_sem p1 rtl1 nc1) s1 t s1' \/ (Star (mixed_sem p1 rtl1 nc1) s1 t s1' /\ bb_order i' i))
+    (SPlus (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' \/ (Star (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' /\ bb_order i' i))
     /\ bb_match_states i' s1' s3'.
 Proof.
   intros. inv H0.
@@ -310,7 +312,7 @@ Proof.
   inv H6. left. eapply t_trans; eauto. left; auto.
 Qed.
 
-Lemma compose_backward_simulation: backward_internal_simulation p1 p3 rtl1 rtl3 nc1 nc3.
+Lemma compose_backward_simulation: backward_internal_simulation p1 p3 rtl1 rtl3 nc1 nc3 anc1 anc3.
 Proof.
   apply Backward_internal_simulation with (bsim_order := bb_order) (bsim_match_states := bb_match_states).
 (* well founded *)
@@ -352,29 +354,30 @@ Section FORWARD_TO_BACKWARD.
 Variable p1 p2: program.
 Variable rtl1 rtl2: option (RTLfun+RTLblockfun).
 Variable nc1: asm_codes.
-Variables nc2: asm_codes.
-Variable FS: forward_internal_simulation p1 p2 rtl1 rtl2 nc1 nc2.
-Hypothesis p1_receptive: receptive (mixed_sem p1 rtl1 nc1).
-Hypothesis p2_determinate: determinate (mixed_sem p2 rtl2 nc2).
+Variable nc2: asm_codes.
+Variable anc1 anc2: anchor_status. 
+Variable FS: forward_internal_simulation p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2.
+Hypothesis p1_receptive: receptive (mixed_sem p1 rtl1 nc1 anc1).
+Hypothesis p2_determinate: determinate (mixed_sem p2 rtl2 nc2 anc2).
 
 (** Exploiting forward simulation *)
 
 Inductive f2b_transitions: mixed_state -> mixed_state -> Prop :=
   | f2b_trans_final: forall s1 s2 s1' r,
-      Star (mixed_sem p1 rtl1 nc1) s1 E0 s1' ->
+      Star (mixed_sem p1 rtl1 nc1 anc1) s1 E0 s1' ->
       final_mixed_state p1 s1' r ->
       final_mixed_state p2 s2 r ->
       f2b_transitions s1 s2
   | f2b_trans_step: forall s1 s2 s1' t s1'' s2' i' i'',
-      Star (mixed_sem p1 rtl1 nc1) s1 E0 s1' ->
-      Step (mixed_sem p1 rtl1 nc1) s1' t s1'' ->
-      SPlus (mixed_sem p2 rtl2 nc2) s2 t s2' ->
+      Star (mixed_sem p1 rtl1 nc1 anc1) s1 E0 s1' ->
+      Step (mixed_sem p1 rtl1 nc1 anc1) s1' t s1'' ->
+      SPlus (mixed_sem p2 rtl2 nc2 anc2) s2 t s2' ->
       FS i' s1' s2 ->
       FS i'' s1'' s2' ->
       f2b_transitions s1 s2.
 
 Lemma f2b_progress:
-  forall i s1 s2, FS i s1 s2 -> safe (mixed_sem p1 rtl1 nc1) s1 -> f2b_transitions s1 s2.
+  forall i s1 s2, FS i s1 s2 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 -> f2b_transitions s1 s2.
 Proof.
   intros i0; pattern i0. apply well_founded_ind with (R := fsim_order FS).
   apply fsim_order_wf.
@@ -386,7 +389,7 @@ Proof.
   eapply fsim_match_final_states; eauto.
   (* L1 can make one step *)
   exploit (fsim_simulation FS); eauto. intros [i' [s2' [A MATCH']]].
-  assert (B: SPlus (mixed_sem p2 rtl2 nc2) s2 t s2' \/ (s2' = s2 /\ t = E0 /\ fsim_order FS i' i)).
+  assert (B: SPlus (mixed_sem p2 rtl2 nc2 anc2) s2 t s2' \/ (s2' = s2 /\ t = E0 /\ fsim_order FS i' i)).
     intuition.
     destruct (star_inv H0); intuition.
   clear A. destruct B as [PLUS2 | [EQ1 [EQ2 ORDER]]].
@@ -398,9 +401,9 @@ Proof.
 Qed.
 
 Lemma fsim_simulation_not_E0:
-  forall s1 t s1', Step (mixed_sem p1 rtl1 nc1) s1 t s1' -> t <> E0 ->
+  forall s1 t s1', Step (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' -> t <> E0 ->
   forall i s2, FS i s1 s2 ->
-  exists i', exists s2', SPlus (mixed_sem p2 rtl2 nc2) s2 t s2' /\ FS i' s1' s2'.
+  exists i', exists s2', SPlus (mixed_sem p2 rtl2 nc2 anc2) s2 t s2' /\ FS i' s1' s2'.
 Proof.
   intros. exploit (fsim_simulation FS); eauto. intros [i' [s2' [A B]]].
   exists i'; exists s2'; split; auto.
@@ -425,7 +428,7 @@ Qed.
 
 Lemma f2b_determinacy_inv:
   forall s2 t' s2' t'' s2'',
-  Step (mixed_sem p2 rtl2 nc2) s2 t' s2' -> Step (mixed_sem p2 rtl2 nc2) s2 t'' s2'' ->
+  Step (mixed_sem p2 rtl2 nc2 anc2) s2 t' s2' -> Step (mixed_sem p2 rtl2 nc2 anc2) s2 t'' s2'' ->
   (t' = E0 /\ t'' = E0 /\ s2' = s2'')
   \/ (t' <> E0 /\ t'' <> E0 /\ match_traces (* (symbolenv L1) *) t' t'').
 Proof.
@@ -441,11 +444,11 @@ Proof.
 Qed.
 
 Lemma f2b_determinacy_star:
-  forall s s1, Star (mixed_sem p2 rtl2 nc2) s E0 s1 ->
+  forall s s1, Star (mixed_sem p2 rtl2 nc2 anc2) s E0 s1 ->
   forall t s2 s3,
-  Step (mixed_sem p2 rtl2 nc2) s1 t s2 -> t <> E0 ->
-  Star (mixed_sem p2 rtl2 nc2) s t s3 ->
-  Star (mixed_sem p2 rtl2 nc2) s1 t s3.
+  Step (mixed_sem p2 rtl2 nc2 anc2) s1 t s2 -> t <> E0 ->
+  Star (mixed_sem p2 rtl2 nc2 anc2) s t s3 ->
+  Star (mixed_sem p2 rtl2 nc2 anc2) s1 t s3.
 Proof.
   intros s0 s01 ST0. pattern s0, s01. eapply star_E0_ind; eauto.
   intros. inv H3. congruence.
@@ -501,19 +504,19 @@ Inductive f2b_match_states: f2b_index -> mixed_state -> mixed_state -> Prop :=
       FS i s1 s2 ->
       f2b_match_states (F2BI_after O) s1 s2
   | f2b_match_before: forall s1 t s1' s2b s2 n s2a i,
-      Step (mixed_sem p1 rtl1 nc1) s1 t s1' ->  t <> E0 ->
-      Star (mixed_sem p2 rtl2 nc2) s2b E0 s2 ->
-      starN (step (mixed_sem p2 rtl2 nc2)) (globalenv (mixed_sem p2 rtl2 nc2)) n s2 t s2a ->
+      Step (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' ->  t <> E0 ->
+      Star (mixed_sem p2 rtl2 nc2 anc2) s2b E0 s2 ->
+      starN (step (mixed_sem p2 rtl2 nc2 anc2)) (globalenv (mixed_sem p2 rtl2 nc2 anc2)) n s2 t s2a ->
       FS i s1 s2b ->
       f2b_match_states (F2BI_before n) s1 s2
   | f2b_match_after: forall n s2 s2a s1 i,
-      starN (step (mixed_sem p2 rtl2 nc2)) (globalenv (mixed_sem p2 rtl2 nc2)) (S n) s2 E0 s2a ->
+      starN (step (mixed_sem p2 rtl2 nc2 anc2)) (globalenv (mixed_sem p2 rtl2 nc2 anc2)) (S n) s2 E0 s2a ->
       FS i s1 s2a ->
       f2b_match_states (F2BI_after (S n)) s1 s2.
 
 Remark f2b_match_after':
   forall n s2 s2a s1 i,
-  starN (step (mixed_sem p2 rtl2 nc2)) (globalenv (mixed_sem p2 rtl2 nc2)) n s2 E0 s2a ->
+  starN (step (mixed_sem p2 rtl2 nc2 anc2)) (globalenv (mixed_sem p2 rtl2 nc2 anc2)) n s2 E0 s2a ->
   FS i s1 s2a ->
   f2b_match_states (F2BI_after n) s1 s2.
 Proof.
@@ -525,10 +528,10 @@ Qed.
 (** Backward simulation of L2 steps *)
 
 Lemma f2b_simulation_step:
-  forall s2 t s2', Step (mixed_sem p2 rtl2 nc2) s2 t s2' ->
-  forall i s1, f2b_match_states i s1 s2 -> safe (mixed_sem p1 rtl1 nc1) s1 ->
+  forall s2 t s2', Step (mixed_sem p2 rtl2 nc2 anc2) s2 t s2' ->
+  forall i s1, f2b_match_states i s1 s2 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 ->
   exists i', exists s1',
-    (SPlus (mixed_sem p1 rtl1 nc1) s1 t s1' \/ (Star (mixed_sem p1 rtl1 nc1) s1 t s1' /\ f2b_order i' i))
+    (SPlus (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' \/ (Star (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' /\ f2b_order i' i))
      /\ f2b_match_states i' s1' s2'.
 Proof.
   intros s2 t s2' STEP2 i s1 MATCH SAFE.
@@ -613,7 +616,7 @@ Qed.
 
 (** The backward simulation *)
 
-Lemma forward_to_backward_simulation: backward_internal_simulation p1 p2 rtl1 rtl2 nc1 nc2.
+Lemma forward_to_backward_simulation: backward_internal_simulation p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2.
 Proof.
   eapply Backward_internal_simulation.
    (* with (bsiml_order := f2b_order). (bsiml_match_states := f2b_match_states). *)
@@ -651,7 +654,7 @@ End FORWARD_TO_BACKWARD.
 (* Where the order and match_states relation are made parameters *)
 (* This helps writing the external simulation invariant *)
 
-Record backward_internal_simulation' (p1 p2: program) (rtl1 rtl2:option (RTLfun+RTLblockfun)) (nc1 nc2: asm_codes)
+Record backward_internal_simulation' (p1 p2: program) (rtl1 rtl2:option (RTLfun+RTLblockfun)) (nc1 nc2: asm_codes) (anc1 anc2:anchor_status)
        (idxt: Type)
        (order: idxt -> idxt -> Prop)
        (match_states: idxt -> mixed_state -> mixed_state -> Prop)
@@ -662,27 +665,27 @@ Record backward_internal_simulation' (p1 p2: program) (rtl1 rtl2:option (RTLfun+
     match_states_refl: call_refl match_states;
     match_final_states:
       forall i s1 s2 r,
-      match_states i s1 s2 -> safe (mixed_sem p1 rtl1 nc1) s1 -> final_mixed_state p2 s2 r ->
-      exists s1', Star (mixed_sem p1 rtl1 nc1) s1 E0 s1' /\ final_mixed_state p1 s1' r;
+      match_states i s1 s2 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 -> final_mixed_state p2 s2 r ->
+      exists s1', Star (mixed_sem p1 rtl1 nc1 anc1) s1 E0 s1' /\ final_mixed_state p1 s1' r;
     progress:
       forall i s1 s2,
-      match_states i s1 s2 -> safe (mixed_sem p1 rtl1 nc1) s1 ->
+      match_states i s1 s2 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 ->
       (exists r, final_mixed_state p2 s2 r) \/
-      (exists t, exists s2', Step (mixed_sem p2 rtl2 nc2) s2 t s2');
+      (exists t, exists s2', Step (mixed_sem p2 rtl2 nc2 anc2) s2 t s2');
     simulation:
-      forall s2 t s2', Step (mixed_sem p2 rtl2 nc2) s2 t s2' ->
-      forall i s1, match_states i s1 s2 -> safe (mixed_sem p1 rtl1 nc1) s1 ->
+      forall s2 t s2', Step (mixed_sem p2 rtl2 nc2 anc2) s2 t s2' ->
+      forall i s1, match_states i s1 s2 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 ->
       exists i', exists s1',
-         (SPlus (mixed_sem p1 rtl1 nc1) s1 t s1' \/ (Star (mixed_sem p1 rtl1 nc1) s1 t s1' /\ order i' i))
+         (SPlus (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' \/ (Star (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' /\ order i' i))
       /\ match_states i' s1' s2';
   }.
 
 Lemma bsim_simulation'':
-  forall p1 p2 rtl1 rtl2 nc1 nc2 idx (ord:idx->idx->Prop) ms
-    (S: backward_internal_simulation' p1 p2 rtl1 rtl2 nc1 nc2 ord ms),
-  forall i s2 t s2', Step (mixed_sem p2 rtl2 nc2) s2 t s2' ->
-  forall s1, ms i s1 s2 -> safe (mixed_sem p1 rtl1 nc1) s1 ->
-  (exists i', exists s1', SPlus (mixed_sem p1 rtl1 nc1) s1 t s1' /\ ms i' s1' s2')
+  forall p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 idx (ord:idx->idx->Prop) ms
+    (S: backward_internal_simulation' p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 ord ms),
+  forall i s2 t s2', Step (mixed_sem p2 rtl2 nc2 anc2) s2 t s2' ->
+  forall s1, ms i s1 s2 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 ->
+  (exists i', exists s1', SPlus (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' /\ ms i' s1' s2')
   \/ (exists i', ord i' i /\ t = E0 /\ ms i' s1 s2').
 Proof.
   intros. exploit simulation; eauto.
@@ -696,21 +699,21 @@ Qed.
 
 (* Equivalence between the two definition *)
 Theorem backward_eq:
-  forall p1 p2 rtl1 rtl2 nc1 nc2,
-    backward_internal_simulation p1 p2 rtl1 rtl2 nc1 nc2 ->
-    exists idxt (order:idxt->idxt->Prop) ms, backward_internal_simulation' p1 p2 rtl1 rtl2 nc1 nc2 order ms.
+  forall p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2,
+    backward_internal_simulation p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 ->
+    exists idxt (order:idxt->idxt->Prop) ms, backward_internal_simulation' p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 order ms.
 Proof.
-  intros p1 p2 rtl1 rtl2 nc1 nc2 X. exists (bsim_index X). exists (bsim_order X). exists (bsim_match_states X).
+  intros p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 X. exists (bsim_index X). exists (bsim_order X). exists (bsim_match_states X).
   apply Backward_internal_simulation'; destruct X; auto.
 Qed.
 
 
 Theorem eq_backward:
-  forall p1 p2 rtl1 rtl2 nc1 nc2,
-  forall idxt (order:idxt->idxt->Prop) ms, backward_internal_simulation' p1 p2 rtl1 rtl2 nc1 nc2 order ms ->
-                                 backward_internal_simulation p1 p2 rtl1 rtl2 nc1 nc2.
+  forall p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2,
+  forall idxt (order:idxt->idxt->Prop) ms, backward_internal_simulation' p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 order ms ->
+                                 backward_internal_simulation p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2.
 Proof.
-  intros p1 p2 rtl1 rtl2 nc1 nc2 idxt order ms H.
+  intros p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 idxt order ms H.
   apply Backward_internal_simulation with (bsim_order:=order) (bsim_match_states:=ms);
     destruct H; auto.
 Qed.
@@ -738,10 +741,10 @@ Proof.
 Qed.
 
 Lemma backward_refl:
-  forall p nc rtl,
-    backward_internal_simulation' p p rtl rtl nc nc refl_order refl_match_states.
+  forall p nc rtl anc,
+    backward_internal_simulation' p p rtl rtl nc nc anc anc refl_order refl_match_states.
 Proof.
-  intros p rtl nc. apply Backward_internal_simulation'.
+  intros p rtl nc anc. apply Backward_internal_simulation'.
   - apply wf_refl.
   (* - apply trans_refl. *)
   - unfold call_refl, p_reflexive. intros s REFL. exists tt. split; auto.
@@ -753,28 +756,28 @@ Qed.
 
 (* non-explicit version *)
 Lemma backward_internal_reflexivity:
-  forall p rtl nc, backward_internal_simulation p p rtl rtl nc nc.
+  forall p rtl nc anc, backward_internal_simulation p p rtl rtl nc nc anc anc.
 Proof.
-  intros p rtl nc. eapply eq_backward. eapply backward_refl.
+  intros p rtl nc anc. eapply eq_backward. eapply backward_refl.
 Qed.
 
 (** * Exploiting Sequences  *)
 
 (* Exploiting silent stars *)
 Lemma bsim_E0_star':
-  forall (p1 p2: program) (rtl1 rtl2:option (RTLfun+RTLblockfun)) (nc1 nc2:asm_codes) idxt (ord:idxt->idxt->Prop) ms
-    (S: backward_internal_simulation' p1 p2 rtl1 rtl2 nc1 nc2 ord ms),
-  forall s2 s2', Star (mixed_sem p2 rtl2 nc2) s2 E0 s2' ->
-  forall i s1, ms i s1 s2 -> safe (mixed_sem p1 rtl1 nc1) s1 ->
-  exists i', exists s1', Star (mixed_sem p1 rtl1 nc1) s1 E0 s1' /\ ms i' s1' s2'.
+  forall (p1 p2: program) (rtl1 rtl2:option (RTLfun+RTLblockfun)) (nc1 nc2:asm_codes) (anc1 anc2:anchor_status) idxt (ord:idxt->idxt->Prop) ms
+    (S: backward_internal_simulation' p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 ord ms),
+  forall s2 s2', Star (mixed_sem p2 rtl2 nc2 anc2) s2 E0 s2' ->
+  forall i s1, ms i s1 s2 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 ->
+  exists i', exists s1', Star (mixed_sem p1 rtl1 nc1 anc1) s1 E0 s1' /\ ms i' s1' s2'.
 Proof.
-  intros p1 p2 rtl1 rtl2 nc1 nc2 idxt ord ms S.
+  intros p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 idxt ord ms S.
   intros s20 s20' STAR0. pattern s20, s20'. eapply star_E0_ind; eauto.
 (* base case *)
   intros. exists i; exists s1; split; auto. apply star_refl.
 (* inductive case *)
   intros. exploit simulation; eauto. intros [i' [s1' [A B]]].
-  assert (Star (mixed_sem p1 rtl1 nc1) s0 E0 s1'). intuition. apply plus_star; auto.
+  assert (Star (mixed_sem p1 rtl1 nc1 anc1) s0 E0 s1'). intuition. apply plus_star; auto.
   exploit H0. eauto. eapply star_safe; eauto. intros [i'' [s1'' [C D]]].
   exists i''; exists s1''; split; auto. eapply star_trans; eauto.
 Qed.
@@ -811,9 +814,9 @@ Qed.
 (* Qed. *)
 
 Lemma star_E0:
-  forall p rtl nc s1 s2,
-    Star (mixed_sem p rtl nc) s1 E0 s2 ->
-    SPlus (mixed_sem p rtl nc) s1 E0 s2 \/ s1 = s2.
+  forall p rtl nc anc s1 s2,
+    Star (mixed_sem p rtl nc anc) s1 E0 s2 ->
+    SPlus (mixed_sem p rtl nc anc) s1 E0 s2 \/ s1 = s2.
 Proof.
   intros. inv H.
   right. auto. left. econstructor; eauto.
@@ -853,32 +856,32 @@ Qed.
 
 (** * Composing simulations explicitely  *)
 Lemma bsim_E0_star'':
-  forall p1 p2 rtl1 rtl2 nc1 nc2 i (ord:i->i->Prop) ms
-    (SIM: backward_internal_simulation' p1 p2 rtl1 rtl2 nc1 nc2 ord ms),
-  forall s2 s2', Star (mixed_sem p2 rtl2 nc2) s2 E0 s2' ->
-  forall i s1, ms i s1 s2 -> safe (mixed_sem p1 rtl1 nc1) s1 ->
-  exists i', exists s1', Star (mixed_sem p1 rtl1 nc1) s1 E0 s1' /\ ms i' s1' s2'.
+  forall p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 i (ord:i->i->Prop) ms
+    (SIM: backward_internal_simulation' p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 ord ms),
+  forall s2 s2', Star (mixed_sem p2 rtl2 nc2 anc2) s2 E0 s2' ->
+  forall i s1, ms i s1 s2 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 ->
+  exists i', exists s1', Star (mixed_sem p1 rtl1 nc1 anc1) s1 E0 s1' /\ ms i' s1' s2'.
 Proof.
-  intros p1 p2 rtl1 rtl2 nc1 nc2 idx ord ms SIM.
+  intros p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 idx ord ms SIM.
   intros s20 s20' STAR0. pattern s20, s20'. eapply star_E0_ind; eauto.
 (* base case *)
   intros. exists i; exists s1; split; auto. apply star_refl.
 (* inductive case *)
   intros. exploit simulation; eauto. intros [i' [s1' [A B]]].
-  assert (Star (mixed_sem p1 rtl1 nc1) s0 E0 s1'). intuition. apply plus_star; auto.
+  assert (Star (mixed_sem p1 rtl1 nc1 anc1) s0 E0 s1'). intuition. apply plus_star; auto.
   exploit H0. eauto. eapply star_safe; eauto. intros [i'' [s1'' [C D]]].
   exists i''; exists s1''; split; auto. eapply star_trans; eauto.
 Qed.
 
 Lemma bsim_E0_plus'':
-  forall p1 p2 rtl1 rtl2 nc1 nc2 i (ord:i->i->Prop) ms
-    (SIM: backward_internal_simulation' p1 p2 rtl1 rtl2 nc1 nc2 ord ms),
-  forall s2 t s2', SPlus (mixed_sem p2 rtl2 nc2) s2 t s2' -> t = E0 ->
-  forall i s1, ms i s1 s2 -> safe (mixed_sem p1 rtl1 nc1) s1 ->
-     (exists i', exists s1', SPlus (mixed_sem p1 rtl1 nc1) s1 E0 s1' /\ ms i' s1' s2')
+  forall p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 i (ord:i->i->Prop) ms
+    (SIM: backward_internal_simulation' p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 ord ms),
+  forall s2 t s2', SPlus (mixed_sem p2 rtl2 nc2 anc2) s2 t s2' -> t = E0 ->
+  forall i s1, ms i s1 s2 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 ->
+     (exists i', exists s1', SPlus (mixed_sem p1 rtl1 nc1 anc1) s1 E0 s1' /\ ms i' s1' s2')
   \/ (exists i', clos_trans _ (ord) i' i /\ ms i' s1 s2').
 Proof.
-  intros p1 p2 rtl1 rtl2 nc1 nc2 idx ord ms SIM.
+  intros p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 idx ord ms SIM.
   induction 1 using plus_ind2; intros; subst t.
 (* base case *)
   exploit bsim_simulation''; eauto. intros [[i' [s1' [A B]]] | [i' [A [B C]]]].
@@ -904,15 +907,16 @@ Variable rtl1 rtl2 rtl3:option (RTLfun+RTLblockfun).
 Variable nc1: asm_codes.
 Variable nc2: asm_codes.
 Variable nc3: asm_codes.
-Hypothesis p3_single_events: single_events (mixed_sem p3 rtl3 nc3).
+Variable anc1 anc2 anc3: anchor_status.
+Hypothesis p3_single_events: single_events (mixed_sem p3 rtl3 nc3 anc3).
 Variable i12: Type.
 Variable i23: Type.
 Variable ord12: i12 -> i12 -> Prop.
 Variable ord23: i23 -> i23 -> Prop.
 Variable ms12: i12 -> mixed_state -> mixed_state -> Prop.
 Variable ms23: i23 -> mixed_state -> mixed_state -> Prop.
-Variable S12: backward_internal_simulation' p1 p2 rtl1 rtl2 nc1 nc2 ord12 ms12.
-Variable S23: backward_internal_simulation' p2 p3 rtl2 rtl3 nc2 nc3 ord23 ms23.
+Variable S12: backward_internal_simulation' p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 ord12 ms12.
+Variable S23: backward_internal_simulation' p2 p3 rtl2 rtl3 nc2 nc3 anc2 anc3 ord23 ms23.
 
 
 Let bb_index: Type := (i12 * i23)%type.
@@ -922,7 +926,7 @@ Let bb_order: bb_index -> bb_index -> Prop :=
 
 Inductive bb_ms: bb_index -> mixed_state -> mixed_state -> Prop :=
   | bb_later: forall i1 i2 s1 s3 s2x s2y,
-      ms12 i1 s1 s2x -> Star (mixed_sem p2 rtl2 nc2) s2x E0 s2y -> ms23 i2 s2y s3 ->
+      ms12 i1 s1 s2x -> Star (mixed_sem p2 rtl2 nc2 anc2) s2x E0 s2y -> ms23 i2 s2y s3 ->
       bb_ms (i1, i2) s1 s3.
 
 Lemma bb_match_at':
@@ -934,10 +938,10 @@ Proof.
 Qed.
 
 Lemma bsim_safe':
-  forall p1 p2 rtl1 rtl2 nc1 nc2 i (ord:i->i->Prop) ms
-    (SIM: backward_internal_simulation' p1 p2 rtl1 rtl2 nc1 nc2 ord ms),
+  forall p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 i (ord:i->i->Prop) ms
+    (SIM: backward_internal_simulation' p1 p2 rtl1 rtl2 nc1 nc2 anc1 anc2 ord ms),
   forall i s1 s2,
-  ms i s1 s2 -> safe (mixed_sem p1 rtl1 nc1) s1 -> safe (mixed_sem p2 rtl2 nc2) s2.
+  ms i s1 s2 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 -> safe (mixed_sem p2 rtl2 nc2 anc2) s2.
 Proof.
   intros; red; intros.
   exploit bsim_E0_star''; eauto. intros [i' [s1' [A B]]].
@@ -946,10 +950,10 @@ Qed.
 
 
 Lemma bb_simulation_base':
-  forall s3 t s3', Step (mixed_sem p3 rtl3 nc3) s3 t s3' ->
-  forall i1 s1 i2 s2, ms12 i1 s1 s2 -> ms23 i2 s2 s3 -> safe (mixed_sem p1 rtl1 nc1) s1 ->
+  forall s3 t s3', Step (mixed_sem p3 rtl3 nc3 anc3) s3 t s3' ->
+  forall i1 s1 i2 s2, ms12 i1 s1 s2 -> ms23 i2 s2 s3 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 ->
   exists i', exists s1',
-    (SPlus (mixed_sem p1 rtl1 nc1) s1 t s1' \/ (Star (mixed_sem p1 rtl1 nc1) s1 t s1' /\ bb_order i' (i1, i2)))
+    (SPlus (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' \/ (Star (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' /\ bb_order i' (i1, i2)))
     /\ bb_ms i' s1' s3'.
 Proof.
   intros.
@@ -984,10 +988,10 @@ Proof.
 Qed.
 
 Lemma bb_simulation':
-  forall s3 t s3', Step (mixed_sem p3 rtl3 nc3) s3 t s3' ->
-  forall i s1, bb_ms i s1 s3 -> safe (mixed_sem p1 rtl1 nc1) s1 ->
+  forall s3 t s3', Step (mixed_sem p3 rtl3 nc3 anc3) s3 t s3' ->
+  forall i s1, bb_ms i s1 s3 -> safe (mixed_sem p1 rtl1 nc1 anc1) s1 ->
   exists i', exists s1',
-    (SPlus (mixed_sem p1 rtl1 nc1) s1 t s1' \/ (Star (mixed_sem p1 rtl1 nc1) s1 t s1' /\ bb_order i' i))
+    (SPlus (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' \/ (Star (mixed_sem p1 rtl1 nc1 anc1) s1 t s1' /\ bb_order i' i))
     /\ bb_ms i' s1' s3'.
 Proof.
   intros. inv H0.
@@ -1015,7 +1019,7 @@ Qed.
 
 
 Theorem compose_backward_simulation':
-  backward_internal_simulation' p1 p3 rtl1 rtl3 nc1 nc3 (bb_order) (bb_ms).
+  backward_internal_simulation' p1 p3 rtl1 rtl3 nc1 nc3 anc1 anc3 (bb_order) (bb_ms).
 Proof.
   apply Backward_internal_simulation'. 
 (* well founded *)

@@ -482,7 +482,7 @@ Lemma silent_rtl_mixed:
   forall ge p or ac mut rtls rtls',
     rtl_state_wf rtls -> 
     RTL.step ge rtls E0 rtls' ->
-      mixed_step p or ac (Halt_RTL ge rtls, mut) E0 (Halt_RTL ge rtls', mut).
+      mixed_step AnchorOff p or ac (Halt_RTL ge rtls, mut) E0 (Halt_RTL ge rtls', mut).
 Proof.
   intros ge p or ac mut rtls rtls' STATEWF STEP.
   destruct rtls.
@@ -504,7 +504,7 @@ Lemma silent_rtl_mixed_star:
     ge_wf ge ->
     rtl_state_wf rtls ->
     Smallstep.star RTL.step ge rtls E0 rtls' ->
-    Smallstep.star (mixed_step p or) ac (Halt_RTL ge rtls, mut) E0 (Halt_RTL ge rtls', mut) /\
+    Smallstep.star (mixed_step AnchorOff p or) ac (Halt_RTL ge rtls, mut) E0 (Halt_RTL ge rtls', mut) /\
     rtl_state_wf rtls'.
 Proof.
   intros ge p or ac mut rtls rtls' GEWF H H0. remember E0 as t. induction H0.
@@ -521,7 +521,7 @@ Lemma silent_rtl_mixed_star':
     ge_wf ge ->
     rtl_state_wf rtls ->
     star RTL.step ge rtls E0 rtls' ->
-    star (mixed_step p or) ac (Halt_RTL ge rtls, mut) E0 (Halt_RTL ge rtls', mut) /\
+    star (mixed_step AnchorOff p or) ac (Halt_RTL ge rtls, mut) E0 (Halt_RTL ge rtls', mut) /\
     rtl_state_wf rtls'.
 Proof.
   intros ge p or ac mut rtls rtls' H H0 H1. rewrite <- same_star. rewrite <- same_star in H1.
@@ -534,7 +534,7 @@ Lemma silent_rtl_mixed_plus:
     ge_wf ge ->
     rtl_state_wf rtls ->
     Smallstep.plus RTL.step ge rtls E0 rtls' ->
-    Smallstep.plus (mixed_step p or) ac (Halt_RTL ge rtls, mut) E0 (Halt_RTL ge rtls', mut) /\
+    Smallstep.plus (mixed_step AnchorOff p or) ac (Halt_RTL ge rtls, mut) E0 (Halt_RTL ge rtls', mut) /\
     rtl_state_wf rtls'.
 Proof.
   intros ge p or ac mut rtls rtls' GEWF H H0. inv H0.
@@ -1202,11 +1202,11 @@ Ltac exec_match:=
 
 Lemma safe_step_rtl:
   forall p rtl nc rge rtls ms,
-    safe (mixed_sem p rtl nc) (Halt_RTL rge rtls, ms) ->
-    exists t s', (mixed_step p rtl nc) (Halt_RTL rge rtls, ms) t s'.
+    safe (mixed_sem p rtl nc AnchorOff) (Halt_RTL rge rtls, ms) ->
+    exists t s', (mixed_step AnchorOff p rtl nc) (Halt_RTL rge rtls, ms) t s'.
 Proof.
   intros p rtl nc rge rtls ms H. unfold safe in H.
-  assert (Star (mixed_sem p rtl nc) (Halt_RTL rge rtls, ms) E0 (Halt_RTL rge rtls, ms)) by apply star_refl.
+  assert (Star (mixed_sem p rtl nc AnchorOff) (Halt_RTL rge rtls, ms) E0 (Halt_RTL rge rtls, ms)) by apply star_refl.
   specialize (H (Halt_RTL rge rtls, ms) H0). destruct H as [[r FINAL]|[t [s' STEP]]].
   - inv FINAL.
   - exists t. exists s'. auto.
@@ -1215,8 +1215,8 @@ Qed.
 
 Lemma safe_step_call:
   forall p rtl nc loc ms,
-    safe (mixed_sem p (Some rtl) nc) (S_Call loc, ms) ->
-    exists t s', (mixed_step p (Some rtl) nc) (S_Call loc, ms) t s'.
+    safe (mixed_sem p (Some rtl) nc AnchorOff) (S_Call loc, ms) ->
+    exists t s', (mixed_step AnchorOff p (Some rtl) nc) (S_Call loc, ms) t s'.
 Proof.
   intros p rtl nc loc ms H.
   unfold safe in H. specialize (H (S_Call loc, ms)).
@@ -1231,9 +1231,9 @@ Lemma safe_step_return:
     n_open_stackframe (ms1, codsrc # (pos_of_int fid) <- asmf) = SOK (nat_sf fid contlbl retreg) (ms2, codsrc # (pos_of_int fid) <- asmf) ->
     n_save retval (ms2, codsrc # (pos_of_int fid) <- asmf) = SOK tt (ms3, codsrc # (pos_of_int fid) <- asmf) ->
     n_check_compiled (pos_of_int fid) (ms3, codsrc) = SOK Not_compiled (ms3, codsrc) ->
-    safe (mixed_sem p (Some (inl (pos_of_int fid, rtlc, rtle, cont))) codsrc) (S_Return loc, ms) ->
+    safe (mixed_sem p (Some (inl (pos_of_int fid, rtlc, rtle, cont))) codsrc AnchorOff) (S_Return loc, ms) ->
     exists ge rtls ms',
-      (mixed_step p (Some (inl (pos_of_int fid, rtlc, rtle, cont))) codsrc) (S_Return loc, ms) E0
+      (mixed_step AnchorOff p (Some (inl (pos_of_int fid, rtlc, rtle, cont))) codsrc) (S_Return loc, ms) E0
                                                                             (Halt_RTL ge rtls, ms').
 Proof.
   intros p codsrc asmf0 fid rtlc rtle cont contlbl retreg ms ms1 ms2 ms3 retval loc GET OPEN SAVE CHECK SAFE.
@@ -1287,9 +1287,9 @@ Definition match_loc_fid (fid:fun_id) (loc:call_loc) (ms:mutables) : Prop :=
 Lemma safe_step_call_rtl:
   forall p nc loc ms rtlc rtlentry cont fid,
     match_loc_fid fid loc ms ->
-    safe (mixed_sem p (Some (inl (fid, rtlc, rtlentry, cont))) nc) (S_Call loc, ms) ->
+    safe (mixed_sem p (Some (inl (fid, rtlc, rtlentry, cont))) nc AnchorOff) (S_Call loc, ms) ->
     exists ge rtls ms',
-      (mixed_step p (Some (inl (fid, rtlc, rtlentry, cont))) nc) (S_Call loc, ms) E0
+      (mixed_step AnchorOff p (Some (inl (fid, rtlc, rtlentry, cont))) nc) (S_Call loc, ms) E0
                                                            (Halt_RTL ge rtls, ms').
 Proof.
   intros p nc loc ms rtlc rtlentry cont fid MATCH H.
@@ -1720,7 +1720,7 @@ Lemma mixed_rtl_safety:
   forall rtls ms p rtlf ac rtlp,
     rtl_state_wf rtls ->
     ge_wf (Globalenvs.Genv.globalenv rtlp) ->
-    safe (mixed_sem p rtlf ac) (Halt_RTL (Globalenvs.Genv.globalenv rtlp) rtls, ms) ->
+    safe (mixed_sem p rtlf ac AnchorOff) (Halt_RTL (Globalenvs.Genv.globalenv rtlp) rtls, ms) ->
     (Smallstep.safe (RTL.semantics rtlp) rtls).
 Proof.
   intros rtls ms p rtlf ac rtlp STWF GEWF SAFE.
@@ -1840,9 +1840,9 @@ Theorem backend_progress:
     (INSTALL: n_install_code rtlfid asm (mutsrc, codsrc) = SOK tt (mut_comp, codopt)),
   forall (i : backend_index) (s1 s2 : mixed_state),
     backend_match_states (rtlfid, rtlcode, rtlentry, rtlidx) asm i s1 s2 ->
-    safe (mixed_sem p (Some (inl (rtlfid, rtlcode, rtlentry, rtlidx))) codsrc) s1 ->
+    safe (mixed_sem p (Some (inl (rtlfid, rtlcode, rtlentry, rtlidx))) codsrc AnchorOff) s1 ->
     (exists r : int, final_mixed_state p s2 r) \/
-    (exists (t : trace) (s2' : state (mixed_sem p None codopt)), Step (mixed_sem p None codopt) s2 t s2').
+    (exists (t : trace) (s2' : state (mixed_sem p None codopt AnchorOff)), Step (mixed_sem p None codopt AnchorOff) s2 t s2').
 Proof.
   intros p rtl rtlfid rtlcode0 rtlentry rtlidx asm mutsrc codsrc mut_comp codopt RTL RTLCODEWF NOCOMP BACKEND INSTALL.
   intros i s1 s2 MATCH SAFE. inv RTL.
@@ -2016,7 +2016,7 @@ Proof.
         (* Now i know that the asm step calling the primtive may proceed without failing *)
         econstructor. econstructor. eapply x86_step; eauto.
         unfold asm_int_step, asm_step. destruct (is_final (Asm.State rs m)) eqn:FINAL.
-        { rewrite is_final_correct in FINAL. inv FINAL. rewrite H5 in H. inv H. }
+        { rewrite is_final_correct in FINAL. inv FINAL. rewrite H6 in H. inv H. }
         rewrite exec_bind2. unfold sbind2, sbind. rewrite H. (* rewrite Heqage. *)
         simpl in H0. unfold age. unfold rtlp. rewrite H0. simpl. rewrite Ptrofs.eq_true.
         rewrite exec_bind2. unfold sbind2, sbind. unfold ext_prim_sem.
@@ -2035,14 +2035,14 @@ Theorem backend_simulation:
     (NOCOMP: n_check_compiled rtlfid (mutsrc, codsrc) = SOK Not_compiled (mutsrc, codsrc))
     (BACKEND: rtl_backend (rtlfid, rtlcode, rtlentry, rtlidx) = OK asm)
     (INSTALL: n_install_code rtlfid asm (mutsrc, codsrc) = SOK tt (mut_comp, codopt)),
-  forall (s2 : state (mixed_sem p None codopt)) (t : trace) (s2' : state (mixed_sem p None codopt)),
-    Step (mixed_sem p None codopt) s2 t s2' ->
+  forall (s2 : state (mixed_sem p None codopt AnchorOff)) (t : trace) (s2' : state (mixed_sem p None codopt AnchorOff)),
+    Step (mixed_sem p None codopt AnchorOff) s2 t s2' ->
     forall (i : backend_index) (s1 : mixed_state),
       backend_match_states (rtlfid, rtlcode, rtlentry, rtlidx) asm i s1 s2 ->
-      safe (mixed_sem p (Some (inl (rtlfid, rtlcode, rtlentry, rtlidx))) codsrc) s1 ->
-      exists (i' : backend_index) (s1' : state (mixed_sem p (Some (inl (rtlfid, rtlcode, rtlentry, rtlidx))) codsrc)),
-        (SPlus (mixed_sem p (Some (inl (rtlfid, rtlcode, rtlentry, rtlidx))) codsrc) s1 t s1' \/
-         Star (mixed_sem p (Some (inl (rtlfid, rtlcode, rtlentry, rtlidx))) codsrc) s1 t s1' /\
+      safe (mixed_sem p (Some (inl (rtlfid, rtlcode, rtlentry, rtlidx))) codsrc AnchorOff) s1 ->
+      exists (i' : backend_index) (s1' : state (mixed_sem p (Some (inl (rtlfid, rtlcode, rtlentry, rtlidx))) codsrc AnchorOff)),
+        (SPlus (mixed_sem p (Some (inl (rtlfid, rtlcode, rtlentry, rtlidx))) codsrc AnchorOff) s1 t s1' \/
+         Star (mixed_sem p (Some (inl (rtlfid, rtlcode, rtlentry, rtlidx))) codsrc AnchorOff) s1 t s1' /\
          backend_order i' i) /\ backend_match_states (rtlfid, rtlcode, rtlentry, rtlidx) asm i' s1' s2'.
 Proof.
   intros p rtl rtlfid rtlcode0 rtlentry rtlidx asm mutsrc codsrc mut_comp codopt RTL RTLCODEWF NOCOMP BACKEND INSTALL.
@@ -2304,7 +2304,7 @@ Theorem backend_pass_correct:
     (NOCOMP: n_check_compiled rtlfid (mutsrc, codsrc) = SOK Not_compiled (mutsrc, codsrc))
     (BACKEND: rtl_backend (rtlfid, rtlcode, rtlentry, rtlidx) = OK asm)
     (INSTALL: n_install_code rtlfid asm (mutsrc, codsrc) = SOK tt (mut_comp, codopt)),
-    backward_internal_simulation p p rtl None codsrc codopt.
+    backward_internal_simulation p p rtl None codsrc codopt AnchorOff AnchorOff.
                                  
 Proof.
   intros p rtl rtlfid rtlcode rtlentry rtlidx asm mutsrc codsrc mut_comp codopt RTL RTLCODEWF NOCOMP BACKEND INSTALL.

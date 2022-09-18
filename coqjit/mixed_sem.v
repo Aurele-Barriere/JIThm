@@ -89,6 +89,16 @@ Definition block_step (rtlblock:RTLblockfun) (bs:block_state) : free (trace * bl
 (* Since the Cblock is transformed to an instruction that evaluates the condition and puts the result in guard_reg *)
 
 (** * Mixed Semantics  *)
+
+(* Turning Anchors on or off *)
+(* In the middle-end semantics, we allow anchor steps, they are silent *)
+(* For standard optims in the middle-end, we make Anchors loud *)
+(* In the backend however, anchors steps are turned off so that we work with determinate semantics *)
+(* This is a parameter of the semantics *)
+Inductive anchor_status: Type :=
+| AnchorOn : anchor_status
+| AnchorOff : anchor_status
+| AnchorLoud : anchor_status.
                      
 (* Where we don't want RTL step, but instead use the primitive monads *)
 Inductive interrupt_rtl: RTL.state -> Prop :=
@@ -105,26 +115,26 @@ Definition mixed_state : Type := (synchro_state * mutables).
 
 (* A static mixed semantic (no optimization possible) *)
 (* Using atomic steps instead of loops *)
-Inductive mixed_step : program -> option (RTLfun + RTLblockfun) -> asm_codes -> mixed_state -> Events.trace -> mixed_state -> Prop :=
+Inductive mixed_step : anchor_status -> program -> option (RTLfun + RTLblockfun) -> asm_codes -> mixed_state -> Events.trace -> mixed_state -> Prop :=
 | IR_step:
-    forall p rtl nc irs ms t synchro ms1
+    forall p rtl nc anc irs ms t synchro ms1
       (STEP: exec (IRinterpreter.ir_step irs) naive_impl (ms,nc) = SOK (t, synchro) (ms1,nc)),
-      mixed_step p rtl nc (Halt_IR irs, ms) t (synchro, ms1)
+      mixed_step anc p rtl nc (Halt_IR irs, ms) t (synchro, ms1)
 | x86_step:                     (* all x86 steps, including returning to the hypervisor *)
-    forall p rtl nc xs ge t ms ms1 synchro
+    forall p rtl nc anc xs ge t ms ms1 synchro
       (STEP: exec (ASMinterpreter.asm_int_step ge xs) naive_impl (ms,nc) = SOK (t, synchro) (ms1,nc)),
-      mixed_step p rtl nc (Halt_ASM ge xs, ms) t (synchro, ms1)
+      mixed_step anc p rtl nc (Halt_ASM ge xs, ms) t (synchro, ms1)
 | rtl_step:                     (* all steps except external functions. no change to the monad *)
-    forall p rtl nc ge rtls1 t rtls2 ms
+    forall p rtl nc anc ge rtls1 t rtls2 ms
       (NO_INTERRUPT: ~ interrupt_rtl rtls1)
       (RTL: RTL.step ge rtls1 t rtls2),
-      mixed_step p rtl nc (Halt_RTL ge rtls1, ms) t (Halt_RTL ge rtls2, ms)
+      mixed_step anc p rtl nc (Halt_RTL ge rtls1, ms) t (Halt_RTL ge rtls2, ms)
 | rtl_block_step:
-    forall p rtlb nc bs1 t bs2 ms ms'
+    forall p rtlb nc anc bs1 t bs2 ms ms'
       (BLOCK: exec (block_step rtlb bs1) naive_impl (ms, nc) = SOK (t, bs2) (ms', nc)),
-      mixed_step p (Some (inr rtlb)) nc (Halt_Block bs1, ms) t (Halt_Block bs2, ms')
+      mixed_step anc p (Some (inr rtlb)) nc (Halt_Block bs1, ms) t (Halt_Block bs2, ms')
 | Call_IR:
-    forall p rtl nc fid args ms ms2 ms3 func ver newrm loc
+    forall p rtl nc anc fid args ms ms2 ms3 func ver newrm loc
       (CALLEE: exec (get_callee loc) naive_impl (ms, nc) = SOK fid (ms2, nc))
       (NOT_COMPILED: exec_prim (Prim_Check_Compiled fid) naive_impl (ms2,nc) = SOK Not_compiled (ms2,nc))
       (ARGS: exec (get_args loc) naive_impl (ms2,nc) = SOK args (ms3,nc))
@@ -132,48 +142,48 @@ Inductive mixed_step : program -> option (RTLfun + RTLblockfun) -> asm_codes -> 
       (GETF: (prog_funlist p) # fid = Some func)
       (CURVER: current_version func = ver)
       (INIT: init_regs args (fn_params func) = OK newrm),
-      mixed_step p rtl nc (S_Call loc, ms) E0 (Halt_IR (ver, ver_entry ver, newrm), ms3)
+      mixed_step anc p rtl nc (S_Call loc, ms) E0 (Halt_IR (ver, ver_entry ver, newrm), ms3)
 | Call_x86:
-    forall p rtl nc fid ms ms2 ms3 ms4 af asm_prog xs loc
+    forall p rtl nc anc fid ms ms2 ms3 ms4 af asm_prog xs loc
       (CALLEE: exec (get_callee loc) naive_impl (ms, nc) = SOK fid (ms2, nc))
       (COMPILED: exec_prim (Prim_Check_Compiled fid) naive_impl (ms2,nc) = SOK (Installed af) (ms2,nc))
       (ARGS: exec (set_up_args loc) naive_impl (ms2,nc) = SOK tt (ms3, nc))
       (NOT_RTL: ~ (prtl_id rtl = Some fid))
       (LOAD: exec_prim (Prim_Load_Code (Call_id fid)) naive_impl (ms3,nc) = SOK asm_prog (ms4,nc))
       (INIT: init_nat_state asm_prog = OK xs),
-      mixed_step p rtl nc (S_Call loc, ms) E0 (Halt_ASM (build_genv asm_prog) xs, ms4)
+      mixed_step anc p rtl nc (S_Call loc, ms) E0 (Halt_ASM (build_genv asm_prog) xs, ms4)
 | Call_RTL:
-    forall p rtl nc fid rtlcode entry contidx rtlprog rtls ms ms2 ms3 loc
+    forall p rtl nc anc fid rtlcode entry contidx rtlprog rtls ms ms2 ms3 loc
       (CALLEE: exec (get_callee loc) naive_impl (ms, nc) = SOK fid (ms2, nc))
       (COMPILED: exec_prim (Prim_Check_Compiled fid) naive_impl (ms2,nc) = SOK Not_compiled (ms2,nc))
       (ARGS: exec (set_up_args loc) naive_impl (ms2,nc) = SOK tt (ms3, nc))
       (RTL: rtl = Some (inl (fid, rtlcode, entry, contidx)))
       (MAKE_PROG: backend.make_prog rtlcode entry = rtlprog)
       (INIT: RTL.initial_state rtlprog rtls),
-      mixed_step p rtl nc (S_Call loc, ms) E0 (Halt_RTL (Genv.globalenv rtlprog) rtls, ms3)
+      mixed_step anc p rtl nc (S_Call loc, ms) E0 (Halt_RTL (Genv.globalenv rtlprog) rtls, ms3)
 | Call_RTL_Block:
-    forall p rtl nc fid blkcode entry contidx ms ms1 ms2 loc
+    forall p rtl nc anc fid blkcode entry contidx ms ms1 ms2 loc
       (CALLEE: exec (get_callee loc) naive_impl (ms, nc) = SOK fid (ms1, nc))
       (COMPILED: exec_prim (Prim_Check_Compiled fid) naive_impl (ms1,nc) = SOK Not_compiled (ms1,nc))
       (ARGS: exec (set_up_args loc) naive_impl (ms1,nc) = SOK tt (ms2, nc))
       (RTL_BLOCK: rtl = Some (inr (fid, blkcode, entry, contidx))),
-      mixed_step p rtl nc (S_Call loc, ms) E0 (Halt_Block (BPF entry init_regset), ms2)
+      mixed_step anc p rtl nc (S_Call loc, ms) E0 (Halt_Block (BPF entry init_regset), ms2)
 | Return_IR:
-    forall p rtl nc retval ms ms1 ms2 retreg v pc rm newrm loc
+    forall p rtl nc anc retval ms ms1 ms2 retreg v pc rm newrm loc
       (RETVAL: exec (get_retval loc) naive_impl (ms,nc) = SOK retval (ms1,nc))
       (OPEN_SF: exec_prim (Prim_OpenSF) naive_impl (ms1,nc) = SOK (ir_sf (retreg, v, pc, rm)) (ms2,nc))
       (UPDATE: newrm = rm # retreg <- retval),
-      mixed_step p rtl nc (S_Return loc, ms) E0 (Halt_IR (v, pc, newrm), ms2)
+      mixed_step anc p rtl nc (S_Return loc, ms) E0 (Halt_IR (v, pc, newrm), ms2)
 | Return_x86:
-    forall p rtl nc ms ms1 ms2 ms3 ms4 caller_fid cont_lbl retreg asm_prog xs loc retval
+    forall p rtl nc anc ms ms1 ms2 ms3 ms4 caller_fid cont_lbl retreg asm_prog xs loc retval
       (RETVAL: exec (get_retval loc) naive_impl (ms,nc) = SOK retval (ms1,nc))
       (OPEN_SF: exec_prim (Prim_OpenSF) naive_impl (ms1,nc) = SOK (nat_sf caller_fid cont_lbl retreg) (ms2,nc))
       (SET_RETVAL: exec_prim (Prim_Save retval) naive_impl (ms2,nc) = SOK tt (ms3,nc))
       (LOAD_CONT: exec_prim (Prim_Load_Code (Cont_id (pos_of_int caller_fid) (pos_of_int cont_lbl))) naive_impl (ms3,nc) = SOK asm_prog (ms4,nc))
       (INIT: init_nat_state asm_prog = OK xs),
-      mixed_step p rtl nc (S_Return loc, ms) E0 (Halt_ASM (build_genv asm_prog) xs, ms4)
+      mixed_step anc p rtl nc (S_Return loc, ms) E0 (Halt_ASM (build_genv asm_prog) xs, ms4)
 | Return_RTL:
-    forall p rtl nc fid fidint rtlcode entry contidx cont_lbl retreg cont_entry rtlprog rtls ms ms1 ms2 ms3 loc retval
+    forall p rtl nc anc fid fidint rtlcode entry contidx cont_lbl retreg cont_entry rtlprog rtls ms ms1 ms2 ms3 loc retval
       (INTPOS_FID: int_of_pos fid = OK fidint)
       (RETVAL: exec (get_retval loc) naive_impl (ms,nc) = SOK retval (ms1,nc))
       (OPEN_SF: exec_prim (Prim_OpenSF) naive_impl (ms1,nc) = SOK (nat_sf fidint cont_lbl retreg) (ms2,nc))
@@ -183,9 +193,9 @@ Inductive mixed_step : program -> option (RTLfun + RTLblockfun) -> asm_codes -> 
       (LOAD_CONT: PTree.get (pos_of_int cont_lbl) contidx = Some cont_entry)
       (MAKE_PROG: backend.make_prog rtlcode cont_entry = rtlprog)
       (INIT: RTL.initial_state rtlprog rtls),
-      mixed_step p rtl nc (S_Return loc, ms) E0 (Halt_RTL (Genv.globalenv rtlprog) rtls, ms3)
+      mixed_step anc p rtl nc (S_Return loc, ms) E0 (Halt_RTL (Genv.globalenv rtlprog) rtls, ms3)
 | Return_RTL_Block:
-    forall p rtl nc fid fidint blockcode entry contidx cont_lbl retreg cont_entry ms ms1 ms2 ms3 loc retval
+    forall p rtl nc anc fid fidint blockcode entry contidx cont_lbl retreg cont_entry ms ms1 ms2 ms3 loc retval
       (INTPOS_FID: int_of_pos fid = OK fidint)
       (RETVAL: exec (get_retval loc) naive_impl (ms, nc) = SOK retval (ms1, nc))
       (OPEN_SF: exec_prim (Prim_OpenSF) naive_impl (ms1,nc) = SOK (nat_sf fidint cont_lbl retreg) (ms2,nc))
@@ -193,37 +203,61 @@ Inductive mixed_step : program -> option (RTLfun + RTLblockfun) -> asm_codes -> 
       (NOT_COMPILED: exec_prim (Prim_Check_Compiled fid) naive_impl (ms3,nc) = SOK Not_compiled (ms3,nc))
       (RTL_BLOCK: rtl = Some (inr (fid, blockcode, entry, contidx)))
       (LOAD_CONT: PTree.get (pos_of_int cont_lbl) contidx = Some cont_entry),
-    mixed_step p rtl nc (S_Return loc, ms) E0 (Halt_Block (BPF cont_entry init_regset), ms3)
+    mixed_step anc p rtl nc (S_Return loc, ms) E0 (Halt_Block (BPF cont_entry init_regset), ms3)
 | Return_EOE:
-    forall p rtl nc retval ms ms1 ms2 loc
+    forall p rtl nc anc retval ms ms1 ms2 loc
       (RETVAL: exec (get_retval loc) naive_impl (ms,nc) = SOK retval (ms1,nc))
       (OPEN_SF: exec_prim (Prim_OpenSF) naive_impl (ms1,nc) = SOK empty_stack (ms2,nc)),
-      mixed_step p rtl nc (S_Return loc, ms) E0 (EOE retval, ms2)
+      mixed_step anc p rtl nc (S_Return loc, ms) E0 (EOE retval, ms2)
 | Deopt:
-    forall p rtl nc ftgt ltgt rm ms ms1 ms2 func newver loc
+    forall p rtl nc anc ftgt ltgt rm ms ms1 ms2 func newver loc
       (TARGET: exec (get_target loc) naive_impl (ms,nc) = SOK (ftgt, ltgt) (ms1,nc))
       (BUILD_RM: exec (build_rm loc) naive_impl (ms1,nc) = SOK rm (ms2,nc))
       (FINDF: (prog_funlist p)#ftgt = Some func)
       (TGTVER: base_version func = newver),
-      mixed_step p rtl nc (S_Deopt loc, ms) E0 (Halt_IR (newver, ltgt, rm), ms2)
+      mixed_step anc p rtl nc (S_Deopt loc, ms) E0 (Halt_IR (newver, ltgt, rm), ms2)
 (* Giving semantics to the primitives in RTL *)
 | RTL_prim:
-    forall p rtl nc ge stk name sg args mem ms ms1 retval t
+    forall p rtl nc anc ge stk name sg args mem ms ms1 retval t
       (PRIM_CALL: exec (prim_sem_dec name sg args) naive_impl (ms,nc) = SOK (t, retval) (ms1,nc)),
-      mixed_step p rtl nc
+      mixed_step anc p rtl nc 
                  (Halt_RTL ge (RTL.Callstate stk (AST.External (EF_runtime name sg)) args mem), ms) t
                  (Halt_RTL ge (RTL.Returnstate stk (Vint retval) mem), ms1)
 | RTL_end:                      (* Returning from the RTL program *)
-    forall p rtl nc ge rtls r cp ms
+    forall p rtl nc anc ge rtls r cp ms
       (FINAL: RTL.final_state rtls r)
       (CHK: get_checkpoint r = OK cp),
-      mixed_step p rtl nc
+      mixed_step anc p rtl nc 
                  (Halt_RTL ge rtls, ms) E0 (synchro_of cp, ms)
 | RTL_block_end:
-    forall p rtl nc r cp ms s
+    forall p rtl nc anc r cp ms s
       (CHK: get_checkpoint r = OK cp)
       (SYNC: synchro_of cp = s),
-      mixed_step p rtl nc (Halt_Block (BFinal r), ms) E0 (s, ms).
+      mixed_step anc p rtl nc (Halt_Block (BFinal r), ms) E0 (s, ms)
+(* Anchor non-determinate steps *)
+| Anchor_go_on:
+  forall p rtl nc v pc rm newrm ftgt ltgt vm next ms 
+    (ANCHOR: (ver_code v) # pc = Some (Anchor (ftgt, ltgt) vm next))
+    (BUILD: update_regmap vm rm = OK newrm), (* deopt should be possible, even to go on *)
+    mixed_step AnchorOn p rtl nc (Halt_IR (v, pc, rm), ms) E0 (Halt_IR (v, next, rm), ms)
+| Anchor_deopt:
+  forall p rtl nc v pc rm newrm ftgt ltgt vm next ms
+    (ANCHOR: (ver_code v) # pc = Some (Anchor (ftgt, ltgt) vm next))
+    (BUILD: update_regmap vm rm = OK newrm),
+    mixed_step AnchorOn p rtl nc (Halt_IR (v, pc, rm), ms) E0 (S_Deopt (ir_deopt ftgt ltgt newrm), ms)
+(* Non-Deterministic and Determinate Anchor Semantics *)
+| Loud_go_on:
+  forall p rtl nc v pc rm newrm ftgt ltgt vm next ms
+    (ANCHOR: (ver_code v) # pc = Some (Anchor (ftgt, ltgt) vm next))
+    (BUILD: update_regmap vm rm = OK newrm), (* deopt should be possible, even to go on *)
+    mixed_step AnchorLoud p rtl nc (Halt_IR (v, pc, rm), ms) [ev_go_on] (Halt_IR (v, next, rm), ms)
+| Loud_deopt:
+  forall p rtl nc v pc rm newrm ftgt ltgt vm next ms
+    (ANCHOR: (ver_code v) # pc = Some (Anchor (ftgt, ltgt) vm next))
+    (BUILD: update_regmap vm rm = OK newrm),
+    mixed_step AnchorLoud p rtl nc (Halt_IR (v, pc, rm), ms) [ev_deopt] (S_Deopt (ir_deopt ftgt ltgt newrm), ms).
+
+
 
 Inductive init_mixed_state (p:program) (nc:asm_codes): mixed_state -> Prop :=
 | init_mixed:
@@ -233,55 +267,8 @@ Inductive final_mixed_state (p:program) : mixed_state -> int -> Prop :=
 | final_mixed': forall retval ms,
     final_mixed_state p (EOE retval, ms) retval.
 
-Definition mixed_sem (p:program) (rtl:option (RTLfun + RTLblockfun)) (nc:asm_codes): semantics :=
-  Semantics_gen (mixed_step p rtl) (init_mixed_state p nc) (final_mixed_state p) nc.
-
-
-(** * Middle Semantics  *)
-(* Semantics used for the correction of the middle-end compiler, where Anchors have behaviors *)
-
-Inductive middle_step: program -> option (RTLfun + RTLblockfun) -> asm_codes -> mixed_state -> Events.trace -> mixed_state -> Prop :=
-| mid_mix: forall p rtl nc ms1 t ms2
-    (STEP: mixed_step p rtl nc ms1 t ms2),
-    middle_step p rtl nc ms1 t ms2
-(* Non-Deterministic and Determinate Anchor Semantics *)
-| mid_go_on:
-  forall p rtl nc v pc rm newrm ftgt ltgt vm next ms 
-    (ANCHOR: (ver_code v) # pc = Some (Anchor (ftgt, ltgt) vm next))
-    (BUILD: update_regmap vm rm = OK newrm), (* deopt should be possible, even to go on *)
-    middle_step p rtl nc (Halt_IR (v, pc, rm), ms) E0 (Halt_IR (v, next, rm), ms)
-| mid_deopt:
-  forall p rtl nc v pc rm newrm ftgt ltgt vm next ms
-    (ANCHOR: (ver_code v) # pc = Some (Anchor (ftgt, ltgt) vm next))
-    (BUILD: update_regmap vm rm = OK newrm),
-    middle_step p rtl nc (Halt_IR (v, pc, rm), ms) E0 (S_Deopt (ir_deopt ftgt ltgt newrm), ms).
-
-Definition middle_sem (p:program) (rtl:option (RTLfun + RTLblockfun)) (nc:asm_codes): semantics :=
-  Semantics_gen (middle_step p rtl) (init_mixed_state p nc) (final_mixed_state p) nc.
-
-
-(** * Loud Semantics  *)
-(* Non-deterministic but Determinate semantics used by the middle-end to reuse forward-to-backward reasoning *)
-
-Inductive loud_step: program -> option (RTLfun + RTLblockfun) -> asm_codes -> mixed_state -> Events.trace -> mixed_state -> Prop :=
-| loud_mix: forall p rtl nc ms1 t ms2
-    (STEP: mixed_step p rtl nc ms1 t ms2),
-    loud_step p rtl nc ms1 t ms2
-(* Non-Deterministic and Determinate Anchor Semantics *)
-| loud_go_on:
-  forall p rtl nc v pc rm newrm ftgt ltgt vm next ms 
-    (ANCHOR: (ver_code v) # pc = Some (Anchor (ftgt, ltgt) vm next))
-    (BUILD: update_regmap vm rm = OK newrm), (* deopt should be possible, even to go on *)
-    loud_step p rtl nc (Halt_IR (v, pc, rm), ms) [ev_go_on] (Halt_IR (v, next, rm), ms)
-| loud_deopt:
-  forall p rtl nc v pc rm newrm ftgt ltgt vm next ms
-    (ANCHOR: (ver_code v) # pc = Some (Anchor (ftgt, ltgt) vm next))
-    (BUILD: update_regmap vm rm = OK newrm),
-    loud_step p rtl nc (Halt_IR (v, pc, rm), ms) [ev_deopt] (S_Deopt (ir_deopt ftgt ltgt newrm), ms).
-
-Definition loud_sem (p:program) (rtl:option (RTLfun + RTLblockfun)) (nc:asm_codes): semantics :=
-  Semantics_gen (loud_step p rtl) (init_mixed_state p nc) (final_mixed_state p) nc.
-
+Definition mixed_sem (p:program) (rtl:option (RTLfun + RTLblockfun)) (nc:asm_codes) (anc:anchor_status): semantics :=
+  Semantics_gen (mixed_step anc p rtl) (init_mixed_state p nc) (final_mixed_state p) nc.
 
 
 (** * Input Semantics *)
@@ -397,11 +384,11 @@ Inductive dynamic_state : Type :=
 Inductive dynamic_step : unit -> dynamic_state -> Events.trace -> dynamic_state -> Prop :=
 | exe_step:
     forall p rtl nc sy1 ms1 sy2 ms2 nb_opt t
-      (MIXED: mixed_step p rtl nc (sy1, ms1) t (sy2, ms2)),
+      (MIXED: mixed_step AnchorOff p rtl nc (sy1, ms1) t (sy2, ms2)),
       dynamic_step tt (Dynamic p rtl sy1 (ms1,nc) nb_opt) t (Dynamic p rtl sy2 (ms2,nc) nb_opt)
 | opt_step:
     forall p rtl nc1 nc2 loc ms nb_opt ps
-      (EXE: exists t sy2 ms2, mixed_step p rtl nc1 (S_Call loc, ms) t (sy2, ms2))
+      (EXE: exists t sy2 ms2, mixed_step AnchorOff p rtl nc1 (S_Call loc, ms) t (sy2, ms2))
       (OPT: exec (optimize ps p) naive_impl (ms,nc1) = SOK tt (ms,nc2)),
       dynamic_step tt (Dynamic p rtl (S_Call loc) (ms,nc1) (S nb_opt)) E0
                    (Dynamic p rtl (S_Call loc) (ms,nc2) nb_opt).

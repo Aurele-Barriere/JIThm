@@ -274,7 +274,7 @@ Qed.
 Lemma safe_dynamic:
   forall p p0 sync mut ac nbopt ,
     safe (dynamic_sem p None) (Dynamic p0 None sync (mut, ac) nbopt) ->
-    (exists r, sync = EOE r) \/ exists t sync2 mut2, mixed_step p0 None ac (sync, mut) t (sync2, mut2).
+    (exists r, sync = EOE r) \/ exists t sync2 mut2, mixed_step AnchorOff p0 None ac (sync, mut) t (sync2, mut2).
 Proof.
   intros p p0 sync mut ac nbopt H. unfold safe in H. simpl in H.
   exploit (H (Dynamic p0 None sync (mut, ac) nbopt)). apply star_refl.

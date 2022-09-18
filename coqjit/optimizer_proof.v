@@ -47,10 +47,10 @@ Proof.
 Qed.
 
 Lemma backward_internal_refl:
-  forall p rtl nc,
-    backward_internal_simulation p p rtl rtl nc nc.
+  forall p rtl nc anc,
+    backward_internal_simulation p p rtl rtl nc nc anc anc.
 Proof.
-  intros p rtl nc. eapply Backward_internal_simulation with (bsim_order:=refl_order) (bsim_match_states:=refl_match_states mixed_state).
+  intros p rtl nc anc. eapply Backward_internal_simulation with (bsim_order:=refl_order) (bsim_match_states:=refl_match_states mixed_state).
   - apply wf_refl.
   - unfold call_refl, p_reflexive. intros s H. inv H. exists tt. constructor.
   - intros i s1 s2 r H H0 H1. exists s2. inv H. split. apply star_refl. auto.
@@ -68,7 +68,7 @@ Qed.
 Theorem optimizer_correct:
   forall p ms nc ms' nc' ps
     (OPT: exec (optimize ps p) naive_impl (ms, nc) = SOK tt (ms', nc')),
-    backward_internal_simulation p p None None nc nc'.
+    backward_internal_simulation p p None None nc nc' AnchorOff AnchorOff.
 Proof.
   intros p ms nc ms' nc' ps OPT. unfold optimize in OPT.
   repeat sdo_ok. destruct n0 as [mut cod]. apply n_check_same in HDO0 as SAME. inv SAME. destruct c.
@@ -83,12 +83,12 @@ Proof.
   2: { inv BACKEND. } unfold bind3, bind in BACKEND. simpl fst in BACKEND. simpl snd in BACKEND.
   destruct (flattenRTL.flatten ((backend_suggestion ps:positive), block_code, block_entry, block_idx)) eqn:FLATTEN.
   2: { inv BACKEND. }
-  apply compose_backward_simulation with (p2:=p) (rtl2:=Some (inr (backend_suggestion ps, block_code, block_entry, block_idx))) (nc2:=cod).
+  apply compose_backward_simulation with (p2:=p) (rtl2:=Some (inr (backend_suggestion ps, block_code, block_entry, block_idx))) (nc2:=cod) (anc2:=AnchorOff).
   { apply single_mixed. }
   - eapply block_gen_correct; eauto. (* IRtoRTLblock is correct *)
     unfold n_check_compiled in HDO0. simpl in HDO0.
     destruct (cod # (backend_suggestion ps)); inv HDO0. auto.
-  - apply compose_backward_simulation with (p2:=p) (rtl2:=Some (inl r)) (nc2:=cod).
+  - apply compose_backward_simulation with (p2:=p) (rtl2:=Some (inl r)) (nc2:=cod) (anc2:=AnchorOff).
     { apply single_mixed. }
     + apply flatten_correct; auto.    (* flattening RTLblock is correct *)
       intros H. inv H. unfold n_check_compiled in HDO0. simpl in HDO0. rewrite NAT_RTL in HDO0. inv HDO0.

@@ -110,7 +110,7 @@ Ltac destruct_exec_index :=
 (* Relating semantic states of the original program and dynamic states *)
 Inductive match_states: program -> dynamic_index -> mixed_state -> dynamic_state -> Prop :=
 | dynamic_match: forall p nc' ji sync sync' ms ms'
-               (INTERNAL_SIM: backward_internal_simulation' p p None None nocode nc' (jorder ji) (jrel ji))
+               (INTERNAL_SIM: backward_internal_simulation' p p None None nocode nc' AnchorOff AnchorOff (jorder ji) (jrel ji))
                (INTERNAL_MATCH: (jrel ji) (jindex ji) (sync, ms) (sync', ms')),
     match_states p ji
                  (sync, ms)
@@ -119,7 +119,7 @@ Inductive match_states: program -> dynamic_index -> mixed_state -> dynamic_state
 
 Theorem dynamic_optim_correct:
   forall p,
-    backward_simulation (mixed_sem p None nocode)
+    backward_simulation (mixed_sem p None nocode AnchorOff)
                         (dynamic_sem p None).
 Proof.
   intros p.
@@ -154,7 +154,7 @@ Proof.
       2: { apply single_mixed. } 
       (* Constructing the new index, with a new relation and new order *)
       set (neword:= lex_ord (Relation_Operators.clos_trans (index_type (jexec ji)) (jorder ji)) optorder).
-      set (newms := bb_ms p None nc' (jrel ji) optms).
+      set (newms := bb_ms p None nc' AnchorOff (jrel ji) optms).
       assert (NEWWF: well_founded neword) by apply (order_wf NEW_SIM).
       fold neword in NEW_SIM. fold newms in NEW_SIM.
       (* constructing the new match *)

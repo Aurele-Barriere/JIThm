@@ -1180,7 +1180,7 @@ Lemma generate_saves_star:
   forall p rtl nc (lr:list reg) (lbi:list block_instr) (li:list Integers.Int.int) (ei:exit_instr) (rs:RTL.regset) (stk:stack) (stktop:env) (mem:memory),
     eval_list_int rs lr li ->
     exists rs', 
-    star (mixed_step p (Some (inr rtl))) nc
+    star (mixed_step AnchorOff p (Some (inr rtl))) nc
          (Halt_Block (BState (Bblock ((generate_saves lr) ++ lbi, ei)) rs), mkmut stk stktop mem ) E0
          (Halt_Block (BState (Bblock (lbi, ei)) rs'), mkmut stk ((rev li)++stktop) mem) /\
     same_shift rs rs'.
@@ -1206,7 +1206,7 @@ Lemma generate_pushvm_star:
     generate_pushvm vm = OK lvm ->
     eval_varmap_int rs vm li -> 
     exists rs',
-    star (mixed_step p (Some (inr rtl))) nc
+    star (mixed_step AnchorOff p (Some (inr rtl))) nc
          (Halt_Block (BState (Bblock (lvm ++ lbi, ei)) rs), mkmut stk top mem) E0
          (Halt_Block (BState (Bblock (lbi, ei)) rs'), mkmut stk ((rev li) ++ top) mem) /\
     same_shift rs rs'.
@@ -1251,7 +1251,7 @@ Lemma generate_pushargs_star:
   forall p rtl nc (lr:list reg) (lbi:list block_instr) (li:list Integers.Int.int) (ei:exit_instr) (rs:RTL.regset) (stk:stack) (stktop:env) (mem:memory),
     eval_list_int rs lr li ->
     exists rs',
-    star (mixed_step p (Some (inr rtl))) nc
+    star (mixed_step AnchorOff p (Some (inr rtl))) nc
          (Halt_Block (BState (Bblock ((generate_pushargs lr) ++ lbi, ei)) rs), mkmut stk stktop mem ) E0
          (Halt_Block (BState (Bblock (lbi, ei)) rs'), mkmut stk ((rev li)++stktop) mem) /\
     same_shift rs rs'.
@@ -1278,7 +1278,7 @@ Lemma generate_loads_star:
     NoDup lregs ->
     eval_list_int rs lregs saved ->
     exists rs',
-      star (mixed_step p (Some (inr rtl))) nc
+      star (mixed_step AnchorOff p (Some (inr rtl))) nc
            (Halt_Block (BState (Bblock ((generate_loads lregs) ++ lbi, ei)) initrs), mkmut stk ((rev saved)++top) mem) E0
            (Halt_Block (BState (Bblock (lbi, ei)) rs'), mkmut stk top mem) /\
       (forall r, In r lregs -> Regmap.get (shift_reg r) rs' = Regmap.get (shift_reg r) rs) /\
@@ -1332,7 +1332,7 @@ Lemma generate_popargs_star:
   forall p rtl nc (params:list reg) (lbi:list block_instr) (vals top:list Integers.Int.int) (ei:exit_instr) (stk:stack) (mem:memory) rm,
     initr vals params rm ->
   exists rs',
-    star (mixed_step p (Some (inr rtl))) nc
+    star (mixed_step AnchorOff p (Some (inr rtl))) nc
          (Halt_Block (BState (Bblock ((generate_popargs params) ++ lbi, ei)) init_regset), mkmut stk ((rev vals)++top) mem) E0
          (Halt_Block (BState (Bblock (lbi, ei)) rs'), mkmut stk top mem) /\
     (forall r, value_agree (rm # r) (Regmap.get (shift_reg r) rs')).
@@ -1617,7 +1617,7 @@ Theorem block_gen_forward:
     (PARAMS: fn_params f = params)
     (NO_ASM: nc # fid = None)
     (BLOCKGEN: rtlgen fid v params = OK (blockc, entry, contidx)),
-    forward_internal_simulation p p None (Some (inr (fid, blockc, entry, contidx))) nc nc.
+    forward_internal_simulation p p None (Some (inr (fid, blockc, entry, contidx))) nc nc AnchorOff AnchorOff.
 Proof.
   intros p nc fid f v params blockc entry contidx FINDF CURV PARAMS NO_ASM BLOCKGEN.
   destruct (liveness_analyze v) as [live|] eqn:LIVE.
@@ -2263,7 +2263,7 @@ Theorem block_gen_correct:
     (PARAMS: fn_params f = params)
     (NO_ASM: nc # fid = None)
     (BLOCKGEN: rtlgen fid v params = OK (blockc, entry, contidx)),
-    backward_internal_simulation p p None (Some (inr (fid, blockc, entry, contidx))) nc nc.
+    backward_internal_simulation p p None (Some (inr (fid, blockc, entry, contidx))) nc nc AnchorOff AnchorOff.
 Proof.
   intros p nc fid f v params blockc entry contidx FINDF CURV PARAMS NO_ASM BLOCKGEN.
   apply internal_simulations.forward_to_backward_simulation.

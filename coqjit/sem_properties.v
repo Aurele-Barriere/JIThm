@@ -150,11 +150,11 @@ Qed.
 
 
 Lemma single_mixed_step:
-  forall p rtl nc s1 s2 t
-    (STEP: mixed_step p rtl nc s1 t s2),
+  forall p rtl nc anc s1 s2 t
+    (STEP: mixed_step anc p rtl nc s1 t s2),
     (Datatypes.length t <= 1)%nat.
 Proof.
-  intros p rtl nc s1 s2 t STEP.
+  intros p rtl nc anc s1 s2 t STEP.
   inv STEP; simpl; auto.
   - eapply single_ir; eauto. 
   - eapply single_asm_int; eauto. 
@@ -165,8 +165,8 @@ Qed.
 
 
 Theorem single_mixed:
-  forall p rtl nc,
-    single_events (mixed_sem p rtl nc).
+  forall p rtl nc anc,
+    single_events (mixed_sem p rtl nc anc).
 Proof.
   unfold single_events. intros p rtl nc s t s' H.
   simpl in H. eapply single_mixed_step; eauto.
@@ -177,7 +177,7 @@ Theorem single_dynamic:
   forall p rtl, single_events (dynamic_sem p rtl).
 Proof.
   intros p rtl. unfold single_events. intros s t s' STEP. inv STEP; auto.
-  specialize (single_mixed p0 rtl0 nc (sy1,ms1) t (sy2,ms2) MIXED). intros; auto.
+  specialize (single_mixed p0 rtl0 nc AnchorOff (sy1,ms1) t (sy2,ms2) MIXED). intros; auto.
 Qed.
 
 
@@ -422,7 +422,23 @@ Qed.
 
 Lemma mixed_events:
   forall p rtl nc s1 t s2,
-    mixed_step p rtl nc s1 t s2 ->
+    mixed_step AnchorOff p rtl nc s1 t s2 ->
+    t = nil \/ exists v, t = (print_event v).
+Proof.
+  intros p rtl nc s1 t s2 H. inv H; try solve[left; auto].
+  - unfold ir_step in STEP. repeat sdo_ok. destruct p0. apply ir_events in HDO. auto.
+  - unfold asm_int_step in STEP. repeat sdo_ok. destruct p0.
+    apply asm_events in HDO. simpl in STEP. destruct i; repeat sdo_ok; auto.
+  - inv RTL; try solve[left; auto].
+    + exfalso. apply NO_INTERRUPT. econstructor; eauto.
+    + exfalso. apply NO_INTERRUPT. econstructor; eauto.
+  - eapply block_events in BLOCK; auto. 
+  - apply ef_events in PRIM_CALL. auto.
+Qed.
+
+Lemma mixed_events_anchoron:
+  forall p rtl nc s1 t s2,
+    mixed_step AnchorOn p rtl nc s1 t s2 ->
     t = nil \/ exists v, t = (print_event v).
 Proof.
   intros p rtl nc s1 t s2 H. inv H; try solve[left; auto].
@@ -439,7 +455,7 @@ Qed.
 
 Theorem mixed_receptive:
   forall p rtl nc,
-  receptive (mixed_sem p rtl nc).
+  receptive (mixed_sem p rtl nc AnchorOff).
 Proof.
   intros p rtl nc. constructor.
   2: apply single_mixed.
@@ -448,7 +464,20 @@ Proof.
   - simpl in H. apply mixed_events in H. destruct H. inv H. inv H. inv H0.
   - simpl in H. apply mixed_events in H. destruct H. inv H. inv H. inv H0.
 Qed.
-  
+
+Theorem mixed_receptive_anchoron:
+  forall p rtl nc,
+  receptive (mixed_sem p rtl nc AnchorOn).
+Proof.
+  intros p rtl nc. constructor.
+  2: apply single_mixed.
+  intros s t1 s1 t2 H H0.
+  inv H0; eauto.
+  - simpl in H. apply mixed_events_anchoron in H. destruct H. inv H. inv H. inv H0.
+  - simpl in H. apply mixed_events_anchoron in H. destruct H. inv H. inv H. inv H0.
+Qed.
+
+
 (** * Determinacy  *)
 Definition trace_length (l:trace):= Datatypes.length l.  
 
@@ -461,12 +490,12 @@ Proof.
 Qed.
 
 Lemma mixed_match:
-  forall p rtl nc s t s',
-    Step (mixed_sem p rtl nc) s t s' ->
+  forall p rtl nc anc s t s',
+    Step (mixed_sem p rtl nc anc) s t s' ->
     match_traces t t.
 Proof.
-  intros p rtl nc s t s' H.
-  assert (single_events (mixed_sem p rtl nc)) by apply single_mixed.
+  intros p rtl nc anc s t s' H.
+  assert (single_events (mixed_sem p rtl nc anc)) by apply single_mixed.
   unfold single_events in H0. apply H0 in H. apply exact_match_traces. auto.
 Qed.
 
@@ -509,11 +538,13 @@ Inductive rtl_conflict : option (RTLfun+RTLblockfun) -> asm_codes -> Prop :=
 | conflict_block: forall fid rtlc entry contidx nc af
                     (NAT_RTL: nc # fid = Some af),
     rtl_conflict (Some (inl (fid, rtlc, entry, contidx))) nc.
-    
+
+(* only true when Anchors are off *)
+(* the loud determinacy is below *)
 Lemma mixed_sd_determ:
   forall p rtl nc s t1 s1 t2 s2,
     ~ rtl_conflict rtl nc ->
-    mixed_step p rtl nc s t1 s1 -> mixed_step p rtl nc s t2 s2 -> match_traces t1 t2 /\ (t1 = t2 -> s1 = s2).
+    mixed_step AnchorOff p rtl nc s t1 s1 -> mixed_step AnchorOff p rtl nc s t2 s2 -> match_traces t1 t2 /\ (t1 = t2 -> s1 = s2).
 Proof.
   intros p rtl nc s t1 s1 t2 s2 NO_CONFLICT H H0.
   apply mixed_match in H as MATCH1. apply mixed_match in H0 as MATCH2.
@@ -581,7 +612,7 @@ Qed.
 Theorem mixed_determinate:
   forall p rtl nc,
     ~ rtl_conflict rtl nc ->
-    determinate (mixed_sem p rtl nc).
+    determinate (mixed_sem p rtl nc AnchorOff).
 Proof.
   intros p rtl nc NO_CONFLICT. constructor.
   - intros s t1 s1 t2 s2 H H0. simpl in H, H0. eapply mixed_sd_determ; eauto.
@@ -595,36 +626,119 @@ Qed.
 
 
 (** * Loud Semantics Determinacy  *)
-Theorem loud_determinacy:
+Lemma mixed_sd_determ_loud:
+  forall p rtl nc s t1 s1 t2 s2,
+    ~ rtl_conflict rtl nc ->
+    mixed_step AnchorLoud p rtl nc s t1 s1 -> mixed_step AnchorLoud p rtl nc s t2 s2 -> match_traces t1 t2 /\ (t1 = t2 -> s1 = s2).
+Proof.
+(*   intros p rtl nc s t1 s1 t2 s2 NO_CONFLICT H H0. *)
+(*   apply mixed_match in H as MATCH1. apply mixed_match in H0 as MATCH2. *)
+(*   inv H. *)
+(*   + inv H0; repeat match_some; repeat match_sok; repeat match_ok; split; auto. *)
+(*   + inv H0; repeat match_some; repeat match_sok; repeat match_ok; split; auto. *)
+(*   + inv H0; try solve [exfalso; apply NO_INTERRUPT; constructor]. *)
+(*     * eapply rtl_interrupt_determinate in RTL; eauto. *)
+(*       destruct RTL. subst. split; auto. *)
+(*     * inv FINAL. inv RTL. *)
+(*   + inv H0; repeat match_some; repeat match_sok; repeat match_ok; split; auto; inv BLOCK. *)
+(*   + inv H0; repeat match_some; repeat match_sok; repeat match_ok; split; intros; auto. *)
+(*     * rewrite GETF0 in GETF. inv GETF. rewrite INIT0 in INIT. inv INIT. auto.  *)
+(*     * simpl in NOT_RTL. contradiction. *)
+(*     * simpl in NOT_RTL. contradiction. *)
+(*   + inv H0; repeat match_some; repeat match_sok; repeat match_ok. split; auto. *)
+(*   + inv H0; repeat match_some; repeat match_sok; repeat match_ok; split; auto. *)
+(*     * simpl in NOT_RTL. contradiction. *)
+(*     * inv RTL. inv INIT. inv INIT0. unfold ge in *. unfold ge0 in *. *)
+(*       repeat match_some. split; auto. *)
+(*     * inv RTL_BLOCK. *)
+(*   + inv H0; repeat match_some; repeat match_sok; repeat match_ok; split; auto. *)
+(*     * simpl in NOT_RTL. contradiction. *)
+(*     * inv RTL. *)
+(*     * inv RTL_BLOCK. eauto. *)
+(*   + inv H0; repeat match_some; repeat match_sok; repeat match_ok; split; auto. *)
+(*   + inv H0; repeat match_some; repeat match_sok; repeat match_ok; split; auto. *)
+(*     (* using the no conflict hypothesis *) *)
+(*     * exfalso. apply NO_CONFLICT. simpl in LOAD_CONT. repeat sdo_ok. *)
+(*       unfold n_load_prog_code in HDO. simpl in HDO. apply int_pos_correct in INTPOS_FID. *)
+(*       rewrite INTPOS_FID in HDO. destruct (nc # fid) eqn:FID; inv HDO. econstructor. eauto. *)
+(*     * exfalso. apply NO_CONFLICT. simpl in LOAD_CONT. repeat sdo_ok. *)
+(*       unfold n_load_prog_code in HDO. simpl in HDO. apply int_pos_correct in INTPOS_FID. *)
+(*       rewrite INTPOS_FID in HDO. destruct (nc # fid) eqn:FID; inv HDO. econstructor. eauto.       *)
+(*   + inv H0; repeat match_some; repeat match_sok; repeat match_ok; split; auto. *)
+(*     * exfalso. apply NO_CONFLICT. (* using the no conflict hypothesis *) *)
+(*       simpl in LOAD_CONT0. repeat sdo_ok. unfold n_load_prog_code in HDO. simpl in HDO. *)
+(*       apply int_pos_correct in INTPOS_FID. rewrite INTPOS_FID in HDO. destruct (nc #fid) eqn:FID; inv HDO. *)
+(*       econstructor. eauto. *)
+(*     * specialize (int_of_pos_injective fid fid0 fidint0 INTPOS_FID INTPOS_FID0) as SAME_FID. subst. *)
+(*       repeat match_sok. inv RTL. inv INIT. inv INIT0. *)
+(*       unfold ge in *. unfold ge0 in *. repeat match_some. repeat match_ok. *)
+(*       rewrite LOAD_CONT0 in LOAD_CONT. inv LOAD_CONT. *)
+(*       rewrite H4 in H0. inv H0. rewrite H5 in H1. inv H1. rewrite H3 in H. inv H. auto. *)
+(*     * inv RTL_BLOCK. *)
+(*   + inv H0; repeat match_some; repeat match_sok; repeat match_ok; split; auto. *)
+(*     * exfalso. apply NO_CONFLICT. simpl in LOAD_CONT0. repeat sdo_ok. *)
+(*       unfold n_load_prog_code in HDO. simpl in HDO. destruct (nc #(pos_of_int caller_fid)) eqn:FID; inv HDO. *)
+(*       apply int_pos_correct in INTPOS_FID. rewrite INTPOS_FID in FID. econstructor; eauto. *)
+(*     * inv RTL. *)
+(*     * inv RTL_BLOCK. rewrite LOAD_CONT0 in LOAD_CONT. inv LOAD_CONT. eauto. *)
+(*   + inv H0; repeat match_some; repeat match_sok; repeat match_ok; split; auto. *)
+(*   + inv H0; repeat match_some; repeat match_sok; repeat match_ok; split; auto. *)
+(*     intros. rewrite FINDF0 in FINDF. inv FINDF. auto. *)
+(*   + inv H0; repeat match_some; repeat match_sok; repeat match_ok; split; auto. *)
+(*     * exfalso. apply NO_INTERRUPT. constructor. *)
+(*     * exfalso. apply NO_INTERRUPT. constructor. *)
+(*     * inv FINAL. *)
+(*     * inv FINAL. *)
+(*   + inv FINAL. inv H0. inv RTL. inv FINAL. rewrite CHK0 in CHK. inv CHK. split; intros; auto. *)
+(*   + inv H0. inv BLOCK. rewrite CHK0 in CHK. inv CHK. split; intros; auto. *)
+(* Qed. *)
+Admitted.
+(* TODO *)
+
+Theorem mixed_determinate_loud:
   forall p rtl nc,
     ~ rtl_conflict rtl nc ->
-    determinate (loud_sem p rtl nc).
+    determinate (mixed_sem p rtl nc AnchorLoud).
 Proof.
-    intros p rtl nc NO_CONFLICT. split.
-  - intros s t1 s1 t2 s2 H H0.
-    inv H; inv H0.
-    + eapply mixed_sd_determ; eauto.
-    + inv STEP. unfold ir_step, ir_int_step in STEP0.
-      rewrite ANCHOR in STEP0. simpl in STEP0. inv STEP0.
-    + inv STEP. unfold ir_step, ir_int_step in STEP0.
-      rewrite ANCHOR in STEP0. simpl in STEP0. inv STEP0.
-    + inv STEP. unfold ir_step, ir_int_step in STEP0.
-      rewrite ANCHOR in STEP0. simpl in STEP0. inv STEP0.
-    + split. constructor. intros.
-      rewrite ANCHOR0 in ANCHOR. inv ANCHOR.
-      rewrite BUILD0 in BUILD. inv BUILD. auto.
-    + split. constructor. intros H. inv H.
-    + inv STEP. unfold ir_step, ir_int_step in STEP0.
-      rewrite ANCHOR in STEP0. simpl in STEP0. inv STEP0.
-    + split. constructor. intros H. inv H.
-    + split. constructor. intros.
-      rewrite ANCHOR0 in ANCHOR. inv ANCHOR.
-      rewrite BUILD0 in BUILD. inv BUILD. auto.
-    - unfold single_events. intros s t s' H. inv H.
-      + eapply single_mixed_step; eauto.
-      + simpl. lia.
-      + simpl. lia.
-  - intros s1 s2 H H0. inv H. inv H0. auto. 
-  - intros s r H. inv H. unfold nostep, not. intros. inv H. inv STEP.
+  intros p rtl nc NO_CONFLICT. constructor.
+  - intros s t1 s1 t2 s2 H H0. simpl in H, H0. eapply mixed_sd_determ_loud; eauto.
+  - apply single_mixed.
+  - intros s1 s2 H H0. inv H. inv H0. auto.
+  - intros s r H. inv H. unfold nostep. intros t s'. unfold not. intros H. inv H.
   - intros s r1 r2 H H0. inv H. inv H0. auto.
 Qed.
+
+
+(* Theorem loud_determinacy: *)
+(*   forall p rtl nc, *)
+(*     ~ rtl_conflict rtl nc -> *)
+(*     determinate (loud_sem p rtl nc). *)
+(* Proof. *)
+(*     intros p rtl nc NO_CONFLICT. split. *)
+(*   - intros s t1 s1 t2 s2 H H0. *)
+(*     inv H; inv H0. *)
+(*     + eapply mixed_sd_determ; eauto. *)
+(*     + inv STEP. unfold ir_step, ir_int_step in STEP0. *)
+(*       rewrite ANCHOR in STEP0. simpl in STEP0. inv STEP0. *)
+(*     + inv STEP. unfold ir_step, ir_int_step in STEP0. *)
+(*       rewrite ANCHOR in STEP0. simpl in STEP0. inv STEP0. *)
+(*     + inv STEP. unfold ir_step, ir_int_step in STEP0. *)
+(*       rewrite ANCHOR in STEP0. simpl in STEP0. inv STEP0. *)
+(*     + split. constructor. intros. *)
+(*       rewrite ANCHOR0 in ANCHOR. inv ANCHOR. *)
+(*       rewrite BUILD0 in BUILD. inv BUILD. auto. *)
+(*     + split. constructor. intros H. inv H. *)
+(*     + inv STEP. unfold ir_step, ir_int_step in STEP0. *)
+(*       rewrite ANCHOR in STEP0. simpl in STEP0. inv STEP0. *)
+(*     + split. constructor. intros H. inv H. *)
+(*     + split. constructor. intros. *)
+(*       rewrite ANCHOR0 in ANCHOR. inv ANCHOR. *)
+(*       rewrite BUILD0 in BUILD. inv BUILD. auto. *)
+(*     - unfold single_events. intros s t s' H. inv H. *)
+(*       + eapply single_mixed_step; eauto. *)
+(*       + simpl. lia. *)
+(*       + simpl. lia. *)
+(*   - intros s1 s2 H H0. inv H. inv H0. auto.  *)
+(*   - intros s r H. inv H. unfold nostep, not. intros. inv H. inv STEP. *)
+(*   - intros s r1 r2 H H0. inv H. inv H0. auto. *)
+(* Qed. *)
