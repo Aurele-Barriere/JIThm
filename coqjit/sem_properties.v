@@ -724,3 +724,243 @@ Proof.
   - intros s r H. inv H. unfold nostep. intros t s'. unfold not. intros H. inv H.
   - intros s r1 r2 H H0. inv H. inv H0. auto.
 Qed.
+
+(** * Loud Semantics Properties  *)
+
+(* The only events that can be observed in non-loud semantics *)
+Inductive lowered_trace: trace -> Prop :=
+| lowered_nil: lowered_trace nil
+| lowered_print:
+  forall i, lowered_trace (print_event i).
+
+Fixpoint erase_loud (t:trace) : trace :=
+  match t with
+  | nil => nil
+  | (e::t') =>
+      match e with
+      | Event_annot _ (EVint i :: nil) =>
+          e::erase_loud t'
+      | _ => erase_loud t'
+      end
+  end.
+
+
+Lemma erase_app:
+  forall t1 t2,
+    erase_loud (t1 ** t2) = (erase_loud t1 ) ** (erase_loud t2).
+Proof.
+  intros. induction t1; auto.
+  simpl. destruct a eqn:EV; auto.
+  destruct l eqn:VALS; auto.
+  destruct e eqn:VAL; auto.
+  destruct l0 eqn:NEXT; auto.
+  rewrite IHt1. auto.
+Qed.
+
+Lemma erase_silent:
+  forall t,
+    lowered_trace t ->
+    erase_loud t = t.
+Proof.
+  intros. induction t; auto.
+  inv H. simpl. auto. 
+Qed.
+                    
+Lemma step_lw:
+  forall p rtl nc s t s',
+    mixed_step AnchorOff p rtl nc s t s' ->
+    lowered_trace t.
+Proof.
+  intros. apply mixed_events in H. destruct H.
+  - subst. constructor.
+  - destruct H. subst. constructor.
+Qed.
+
+Lemma match_lowered:
+  forall t1 t2,
+    lowered_trace t1 ->
+    match_traces t1 t2 ->
+    t1 = t2.
+Proof.
+  intros t1 t2 H H0. inv H0; auto; inv H; inv H2.
+Qed.
+
+Lemma silent_step:
+  forall p rtl nc s s',
+    mixed_step AnchorLoud p rtl nc s E0 s' ->
+    mixed_step AnchorOn p rtl nc s E0 s'.
+Proof.
+  intros p rtl nc s s' H. inv H; try solve[econstructor; eauto].
+Qed.
+
+Lemma silent_step':
+  forall p rtl nc s s' t,
+    mixed_step AnchorLoud p rtl nc s t s' ->
+    mixed_step AnchorOn p rtl nc s (erase_loud t) s'.
+Proof.
+  intros. inv H; try solve [econstructor; eauto].
+  - constructor. unfold ir_step in STEP. repeat sdo_ok.
+    destruct p0. apply ir_events in HDO as EV.
+    unfold ir_step. rewrite exec_bind2. unfold sbind2, sbind.
+    rewrite HDO. destruct EV as [|[]]; subst; simpl; auto.
+  - constructor. unfold asm_int_step in STEP. repeat sdo_ok.
+    destruct p0. apply asm_events in HDO as EV.
+    unfold asm_int_step. rewrite exec_bind2. unfold sbind2, sbind.
+    rewrite HDO. simpl in STEP. destruct i.
+    + simpl. repeat sdo_ok. simpl.
+      destruct EV as [|[]]; subst; auto.
+    + simpl. repeat sdo_ok. simpl.
+      destruct EV as [|[]]; subst; auto.
+  - assert (RTL.step ge rtls1 t rtls2) as STEP by auto.
+    inv RTL; try solve[econstructor; eauto].
+    + exfalso. apply NO_INTERRUPT. econstructor; eauto.
+    + exfalso. apply NO_INTERRUPT. econstructor; eauto.
+  - eapply block_events in BLOCK as EV; auto.
+    constructor. destruct EV as [|[]]; subst; simpl; auto.
+  - apply ef_events in PRIM_CALL as EV. constructor.
+    destruct EV as [|[]]; subst; simpl; auto.
+Qed.
+
+Lemma step_silenced:
+  forall p rtl nc s s' t,
+    mixed_step AnchorOn p rtl nc s t s' ->
+    exists t', mixed_step AnchorLoud p rtl nc s t' s'.
+Proof.
+  intros. inv H; try solve[econstructor; econstructor; eauto].
+Qed.
+
+Lemma step_erased:
+  forall p rtl nc s s' t,
+    mixed_step AnchorOn p rtl nc s t s' ->
+    exists t', mixed_step AnchorLoud p rtl nc s t' s' /\ t = erase_loud t'.
+Proof.
+  intros. inv H; econstructor; econstructor; try solve[econstructor; eauto].
+  - unfold ir_step in STEP. repeat sdo_ok. destruct p0. apply ir_events in HDO.
+    destruct HDO as [|[]]; subst; auto.
+  - unfold asm_int_step in STEP. repeat sdo_ok. destruct p0.
+    simpl in STEP. apply asm_events in HDO. destruct i; repeat sdo_ok.
+    + destruct HDO as [|[]]; subst; auto.
+    + destruct HDO as [|[]]; subst; auto.
+  - inv RTL; auto.
+    + exfalso. apply NO_INTERRUPT. econstructor; eauto.
+    + exfalso. apply NO_INTERRUPT. econstructor; eauto.
+  - apply block_events in BLOCK. destruct BLOCK as [|[]]; subst; auto.
+  - apply ef_events in PRIM_CALL. destruct PRIM_CALL as [|[]]; subst; auto.    
+Qed.
+
+(* Off steps are loud steps *)
+Lemma off_loud:
+  forall p rtl nc s s' t,
+    mixed_step AnchorOff p rtl nc s t s' ->
+    mixed_step AnchorLoud p rtl nc s t s'.
+Proof.
+  intros. inv H; econstructor; eauto.
+Qed.
+
+(* Loud Anchor steps correpsond to On steps *)
+Lemma loud_on_go_on:
+  forall p rtl nc s s',
+    mixed_step AnchorLoud p rtl nc s (ev_go_on::nil) s' ->
+    mixed_step AnchorOn p rtl nc s E0 s'.
+Proof.
+  intros. apply silent_step' in H. simpl in H. auto.
+Qed.
+
+Lemma loud_on_deopt:
+  forall p rtl nc s s',
+    mixed_step AnchorLoud p rtl nc s (ev_deopt::nil) s' ->
+    mixed_step AnchorOn p rtl nc s E0 s'.
+Proof.
+  intros. apply silent_step' in H. simpl in H. auto.
+Qed.
+
+(* Steps in AnchorOn mode are either steps in AnchorOff, or Anchor steps *)
+Lemma step_on:
+  forall p rtl nc s t s',
+    mixed_step AnchorOn p rtl nc s t s' ->
+    mixed_step AnchorOff p rtl nc s t s' \/
+    (t = E0 /\ (mixed_step AnchorLoud p rtl nc s (ev_deopt::nil) s' \/
+                 mixed_step AnchorLoud p rtl nc s (ev_go_on::nil) s')).
+Proof.
+  intros. inv H; try solve[left; econstructor; eauto].
+  - right. split; auto. right. eapply Loud_go_on; eauto.
+  - right. split; auto. left. eapply Loud_deopt; eauto.
+Qed.
+
+
+Lemma silent_star:
+  forall p rtl nc s s',
+    Star (mixed_sem p rtl nc AnchorLoud) s E0 s' -> Star (mixed_sem p rtl nc AnchorOn) s E0 s'.
+Proof.
+  intros.
+  assert (IND: forall t, Star (mixed_sem p rtl nc AnchorLoud) s t s' -> t = E0 -> Star (mixed_sem p rtl nc AnchorOn) s t s').
+  { intros t STAR. induction STAR; intros.
+    - apply star_refl.
+    - rewrite H2 in H1. destruct t1. 2: inv H1. destruct t2. 2: inv H1. inv H1.
+      specialize (IHSTAR STAR). econstructor; eauto.
+      apply silent_step; auto. auto. }
+  apply IND; auto.
+Qed.
+
+Lemma silent_star':
+  forall p rtl nc s s' t,
+    Star (mixed_sem p rtl nc AnchorLoud) s t s' -> Star (mixed_sem p rtl nc AnchorOn) s (erase_loud t) s'.
+Proof.
+  intros. induction H.
+  - apply star_refl.
+  - apply silent_step' in H. eapply star_step; eauto. rewrite H1. rewrite erase_app. auto.
+Qed.
+
+Lemma silent_plus':
+  forall p rtl nc s s' t,
+    SPlus (mixed_sem p rtl nc AnchorLoud) s t s' -> SPlus (mixed_sem p rtl nc AnchorOn) s (erase_loud t) s'.
+Proof.
+  intros. inv H. apply silent_step' in H0. apply silent_star' in H1. econstructor; eauto.
+  apply erase_app.
+Qed.
+  
+Lemma safe_loud:
+  forall p rtl nc s,
+    safe (mixed_sem p rtl nc AnchorOn) s -> safe (mixed_sem p rtl nc AnchorLoud) s.
+Proof.
+  intros. unfold safe in *. 
+  intros s' H0. apply silent_star in H0. specialize (H s' H0) as [[r FINAL] | [t [s'' STEP]]].
+  - left. exists r. auto.
+  - right. apply step_silenced in STEP as [t' STEP]. exists t'. exists s''. auto.
+Qed.
+
+(* A loud backward simulation implies an internal backward simulation *)
+Theorem bwd_loud:
+  forall p1 p2 r1 r2 n1 n2,
+    backward_internal_simulation p1 p2 r1 r2 n1 n2 AnchorLoud AnchorLoud ->
+    backward_internal_simulation p1 p2 r1 r2 n1 n2 AnchorOn AnchorOn.
+Proof.
+  intros psrc popt rsrc ropt nscr nopt LOUD.
+  inv LOUD. apply Backward_internal_simulation with (p1:=psrc) (p2:=popt) (bsim_index:=bsim_index) (bsim_order:=bsim_order) (bsim_match_states:=bsim_match_states); auto.
+  - intros i s1 s2 r H H0 H1. apply safe_loud in H0.
+    specialize (bsim_match_final_states i s1 s2 r H H0 H1).
+    destruct bsim_match_final_states as [s1' [STAR FINAL]]. exists s1'. split; auto.
+    apply silent_star; auto.
+  - intros i s1 s2 H H0. apply safe_loud in H0.
+    specialize (bsim_progress i s1 s2 H H0).
+    destruct bsim_progress as [[r FINAL]|[t [s2' STEP]]].
+    + left. exists r. auto.
+    + right. apply silent_step' in STEP. exists (erase_loud t). exists s2'. auto.
+  - intros s2 t s2' STEP i s1 MATCH SAFE.
+    apply safe_loud in SAFE.
+    apply step_on in STEP. destruct STEP as [STEP | [NIL [ STEP | STEP]]]; subst.
+    + apply step_lw in STEP as LW. apply erase_silent in LW.
+      apply off_loud in STEP.
+      specialize (bsim_simulation _ _ _ STEP _ _ MATCH SAFE).
+      destruct bsim_simulation as [i' [s1' [[PLUS | [STAR ORDER]] MATCH']]]; exists i'; exists s1'.
+      * split; auto. left. apply silent_plus' in PLUS. rewrite LW in PLUS. auto.
+      * split; auto. right. apply silent_star' in STAR. rewrite LW in STAR. split; auto.
+    + specialize (bsim_simulation _ _ _ STEP _ _ MATCH SAFE).
+      destruct bsim_simulation as [i' [s1' [[PLUS | [STAR ORDER]] MATCH']]]; exists i'; exists s1'.
+      * split; auto. left. apply silent_plus' in PLUS. simpl in PLUS. auto.
+      * split; auto. right. apply silent_star' in STAR. simpl in STAR. auto.
+    + specialize (bsim_simulation _ _ _ STEP _ _ MATCH SAFE).
+      destruct bsim_simulation as [i' [s1' [[PLUS | [STAR ORDER]] MATCH']]]; exists i'; exists s1'.
+      * split; auto. left. apply silent_plus' in PLUS. simpl in PLUS. auto.
+      * split; auto. right. apply silent_star' in STAR. simpl in STAR. auto.
+Qed.
