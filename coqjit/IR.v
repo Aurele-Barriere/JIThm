@@ -145,6 +145,24 @@ Definition current_version (f:function): version :=
 Definition base_version (f:function) : version :=
   fn_base f.
 
+Definition find_function_ir (fid:fun_id) (p:program): option function :=
+  (prog_funlist p) ! fid.
+
+(* Replacing the optimized version of a function *)
+Definition set_version_function (v:version) (f:function): function :=
+  mk_function (fn_params f) (fn_base f) (Some v).
+
+(* Update a fun_list with the new function containing the new version *)
+Definition set_version_funlist (fid:fun_id) (v:version) (fl:PTree.t function): PTree.t function :=
+  match (fl ! fid) with
+  | None => fl
+  | Some f => fl # fid <- (set_version_function v f)
+  end.
+
+(* Updates versions in a program. *)
+Definition set_version (p:program) (fid:fun_id) (v:version): program :=
+  mk_program (prog_main p) (set_version_funlist fid v (prog_funlist p)).
+
 
 Definition rtl_id (r:option RTLfun) : option fun_id :=
   match (r) with
@@ -174,7 +192,14 @@ Definition max_label {A:Type} (c:PTree.t A): label :=
 
 Definition fresh_label {A:Type} (c:PTree.t A) :=
   Pos.succ (max_label c).
-(* This simple version is often not good enough. See SpecIR.v for a fuel version *)
+
+(* Another version that takes a fresh label suggestion *)
+(* This helps inserts Assumes and Anchors provided that there is space between the labels *)
+Definition fresh_sug (sug:label) (c:code) : label :=
+  match (c!sug) with
+  | Some _ => fresh_label c
+  | None => sug
+  end.
 
 Lemma max_pos'_correct:
     forall A vid v, forall vl:list (positive * A),
@@ -210,6 +235,17 @@ Proof.
   apply Pos2Nat.inj_le in HH. simpl in HH. rewrite Pos2Nat.inj_succ in HH.
   lia. 
 Qed.
+
+
+Theorem fresh_sug_correct:
+  forall c sug l,
+    fresh_sug sug c = l ->
+    c ! l = None.
+Proof.
+  intros c sug l H. unfold fresh_sug in H. destruct (c # sug) eqn:CODE; subst; auto.
+  apply fresh_label_correct. auto.
+Qed.
+  
 
 
 Definition reg_map: Type := PTree.t int. (* values are int *)
