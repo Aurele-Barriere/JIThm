@@ -22,7 +22,14 @@ Definition check_reg (r:reg) (def:regset) : bool :=
 
 Definition check_expr (e:expr) (def:regset) : bool :=
   match e with
-  | BIN bop r1 r2 => andb (check_reg r1 def) (check_reg r2 def)
+  | BIN bop r1 r2 =>
+      match bop with
+      (* We reject the use of modulos in the guard *)
+      (* because even when the registers are defined they may cause an error *)
+      (* we could add a value analysis but it's simpler to prevent them in speculations *)
+      | bmod => false            
+      | _ => andb (check_reg r1 def) (check_reg r2 def)
+      end
   | UNA uop r => check_reg r def
   | ZAR z => true
   end.

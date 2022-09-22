@@ -148,6 +148,13 @@ Definition base_version (f:function) : version :=
 Definition find_function_ir (fid:fun_id) (p:program): option function :=
   (prog_funlist p) ! fid.
 
+(* Find a base version given a function id and a program *)
+Definition find_base_version (fid:fun_id) (p:program): option version :=
+  match (find_function_ir fid p) with
+  | None => None
+  | Some f => Some (fn_base f)
+  end.
+
 (* Replacing the optimized version of a function *)
 Definition set_version_function (v:version) (f:function): function :=
   mk_function (fn_params f) (fn_base f) (Some v).
