@@ -112,7 +112,7 @@ Qed.
 Inductive match_states (p:program) (v:version) (fid:fun_id) (guard: expr) (ancl:label) (params:list reg): as_index -> mixed_state -> mixed_state -> Prop :=
                                         
 | assume_match:                     (* matching at the assume instruction *)
-    forall vins stk stk' heap rm fresh fa la vm next (* newver *) newrm abs
+    forall vins stk stk' top heap rm fresh fa la vm next (* newver *) newrm abs
       (MATCHSTACK: (match_stack v fid guard ancl params) stk stk')
       (OPT: insert_assume_version v fid guard ancl params = OK vins)
       (DEFREGS: defined_regs_analysis (ver_code v) params (ver_entry v) = Some abs)
@@ -124,18 +124,18 @@ Inductive match_states (p:program) (v:version) (fid:fun_id) (guard: expr) (ancl:
       (* (FINDF: find_base_version fa p = Some newver) *)
       (UPDATE: update_regmap vm rm = OK newrm),
       (match_states p v fid guard ancl params) Zero
-        (Halt_IR (v, ancl, rm), mkmut stk nil heap)
-        (Halt_IR (vins, fresh, rm), mkmut stk' nil heap)
+        (Halt_IR (v, ancl, rm), mkmut stk top heap)
+        (Halt_IR (vins, fresh, rm), mkmut stk' top heap)
       
 | opt_match:           (* matching inside the optimized version *)
-    forall vins stk stk' heap lbl rm abs
+    forall vins stk stk' top heap lbl rm abs
       (MATCHSTACK: (match_stack v fid guard ancl params) stk stk')
       (OPT: insert_assume_version v fid guard ancl params = OK vins)
       (DEFREGS: defined_regs_analysis (ver_code v) params (ver_entry v) = Some abs)
       (DEF: defined rm (def_absstate_get lbl abs)),
       (match_states p v fid guard ancl params) One
-        (Halt_IR (v, lbl, rm), mkmut stk nil heap)
-        (Halt_IR (vins, lbl, rm), mkmut stk' nil heap)
+        (Halt_IR (v, lbl, rm), mkmut stk top heap)
+        (Halt_IR (vins, lbl, rm), mkmut stk' top heap)
                                         
 | refl_match:                   (* matching outside of the optimized version *)
     forall synchro stk stk' top heap
@@ -206,14 +206,14 @@ Qed.
 
 
 Lemma code_preservation:        (* use at opt_match *)
-  forall p p' rtl nc s s' rm ms t news vsrc vins fid guard ancl lbl params,
+  forall p p' rtl nc s s' rm top ms t news vsrc vins fid guard ancl lbl params,
     insert_assume_version vsrc fid guard ancl params = OK vins ->
     lbl <> ancl ->
-    safe (mixed_sem p rtl nc AnchorOn) (Halt_IR (vsrc, lbl, rm), mkmut s nil ms) ->
-    Step (mixed_sem p' rtl nc AnchorOn) (Halt_IR (vins, lbl, rm), mkmut s' nil ms) t news ->
+    safe (mixed_sem p rtl nc AnchorOn) (Halt_IR (vsrc, lbl, rm), mkmut s top ms) ->
+    Step (mixed_sem p' rtl nc AnchorOn) (Halt_IR (vins, lbl, rm), mkmut s' top ms) t news ->
     (ver_code vsrc) # lbl = (ver_code vins) # lbl.
 Proof.
-  intros p p' rtl nc s s' rm ms t news vsrc vins fid guard ancl lbl params H H0 H1 H2.
+  intros p p' rtl nc s s' rm top ms t news vsrc vins fid guard ancl lbl params H H0 H1 H2.
   apply safe_code in H1 as [isrc CODESRC]. apply step_code_ir in H2 as [iopt CODEOPT].
   rewrite CODESRC. rewrite CODEOPT. f_equal. symmetry. eapply code_preservation'; eauto.
 Qed.
@@ -349,7 +349,7 @@ Proof.
   - poseq_destr lbl ancl.
     + rewrite OPT in OPTV. inv OPTV. unfold insert_assume_version in OPT. repeat do_ok.
       destruct (c!ancl) eqn:CODEFS; inv H1. destruct i; inv H0.
-      right. exists E0. exists (Halt_IR (vins, (fresh_sug (Pos.succ ancl) c), rm), mkmut stk' nil heap). 
+      right. exists E0. exists (Halt_IR (vins, (fresh_sug (Pos.succ ancl) c), rm), mkmut stk' top heap). 
       repeat do_ok. simpl. destruct d as [ftgt ltgt].
       apply safe_step_ir in SAFE as STEP. destruct STEP as [t [s'' STEP]].
       inv HDO. inv STEP.
@@ -374,9 +374,11 @@ Proof.
             unfold fret'. rewrite HDO. simpl. eauto.
           - poseq_destr f0 fid.
             + simpl in HDO. repeat sdo_ok.
+              unfold n_push_interpreter_stackframe in HDO0. simpl in HDO0. destruct top; inv HDO0.
               econstructor. eapply IR_step. unfold ir_step, ir_int_step. rewrite SAME_CODE. simpl.
               unfold sbind. unfold n_push_interpreter_stackframe. simpl. rewrite HDO. simpl. eauto.
             + simpl in HDO. repeat sdo_ok.
+              unfold n_push_interpreter_stackframe in HDO0. simpl in HDO0. destruct top; inv HDO0.
               econstructor. eapply IR_step. unfold ir_step, ir_int_step. rewrite SAME_CODE. simpl.
               unfold sbind. unfold n_push_interpreter_stackframe. simpl. rewrite HDO. simpl. eauto.
           - destruct (bool_of_int i) eqn:BOOL; repeat sdo_ok.
@@ -403,9 +405,9 @@ Proof.
           - destruct d. repeat sdo_ok. inv HDO. }
 
       * exists E0. rewrite CODESRC in ANCHOR. inv ANCHOR.
-        exists (Halt_IR (vins, next, rm), mkmut stk' nil heap). eapply Anchor_go_on; eauto.
+        exists (Halt_IR (vins, next, rm), mkmut stk' top heap). eapply Anchor_go_on; eauto.
       * exists E0. rewrite CODESRC in ANCHOR. inv ANCHOR.
-        exists (Halt_IR (vins, next, rm), mkmut stk' nil heap). eapply Anchor_go_on; eauto.
+        exists (Halt_IR (vins, next, rm), mkmut stk' top heap). eapply Anchor_go_on; eauto.
                   
   - apply safe_step in SAFE. destruct SAFE as [[t [s'' STEP]]| [r FINAL]].
     2: { inv FINAL. left. exists r. constructor. }
@@ -662,7 +664,7 @@ Proof.
             * eapply opt_match; eauto. def_ok. rewrite SAME_CODE. auto.
 
           + simpl in HDO. repeat sdo_ok. unfold n_push_interpreter_stackframe in HDO0.
-            simpl in HDO0. inv HDO0.
+            simpl in HDO0. destruct top; inv HDO0.
             exists Zero. econstructor. split.
             * left. apply plus_one. eapply IR_step; eauto. unfold ir_step, ir_int_step.
               rewrite SAME_CODE. simpl. unfold sbind. unfold n_push_interpreter_stackframe.
@@ -754,9 +756,10 @@ Proof.
             exists One. econstructor. split.
             * left. apply plus_one. eapply Call_IR; eauto; simpl.
               ** unfold n_check_compiled. simpl. rewrite NOT. eauto.
-            * simpl.  rewrite current_version_set_version. unfold vsrc.
-              (* eapply opt_match. *) admit.
-              (* we need to add to the semantics that the top is empty *)
+            * unfold validator in VALIDATE. fold c in VALIDATE. rewrite CODE_FS in VALIDATE. repeat do_ok.
+              simpl.  rewrite current_version_set_version. eapply opt_match; eauto.
+              ** apply app_match. apply app_match; auto. apply match_stack_same. apply match_stack_same.
+              ** eapply def_analyze_init; eauto.
           +   (* calling another function *)
             rewrite PTree.gso in GETF; auto.
             destruct ms2. eapply addstk_same in CALLEE as [s [APP SAME]].
@@ -1014,4 +1017,6 @@ Proof.
         - exists Zero. econstructor. split.
           + left. apply plus_one. eapply Anchor_deopt; eauto.
           + eapply refl_match. auto.
-Admitted.
+      }
+Qed.
+
