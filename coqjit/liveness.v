@@ -316,6 +316,14 @@ Qed.
 (* The following lemmas express the fact that agreeing on the regset obtained 
    after adding registers implies agreeing on the original regset 
    (which contains less registers) *)
+Lemma reg_live_agree:
+  forall e rs rms rmo,
+    agree rms rmo (reg_live e rs) ->
+    agree rms rmo rs.
+Proof.
+  intros. eapply agree_subset; eauto. apply reg_live_subset.
+Qed.
+
 Lemma expr_live_agree:
   forall e rs rms rmo,
     agree rms rmo (expr_live e rs) ->
@@ -330,6 +338,14 @@ Lemma expr_list_live_agree:
     agree rms rmo rs.
 Proof.
   intros. eapply agree_subset; eauto. apply expr_list_live_subset.
+Qed.
+
+Lemma reg_list_live_agree:
+  forall exl rs rms rmo,
+    agree rms rmo (reg_list_live exl rs) ->
+    agree rms rmo rs.
+Proof.
+  intros. eapply agree_subset; eauto. apply reg_list_live_subset.
 Qed.
 
 (* Lemma movelist_live_agree: *)

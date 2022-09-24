@@ -322,17 +322,17 @@ Ltac def_ok :=
   end.
 
 Lemma progress_preserved:
-  forall f vsrc vins fid guard ancl params s1 s2 p rtl nc i,
+  forall f vsrc vins fid guard ancl params s1 s2 p nc i,
     insert_assume_version vsrc fid guard ancl params = OK vins ->
     find_function_ir fid p = Some f ->
     vsrc = current_version f ->
     match_states p vsrc fid guard ancl params i s1 s2 ->
-    safe (mixed_sem p rtl nc AnchorOn) s1 ->
+    safe (mixed_sem p None nc AnchorOn) s1 ->
     (exists r : Integers.Int.int, final_mixed_state (set_version p fid vins) s2 r) \/
     (exists (t : trace) (s2' : mixed_state),
-        Step (mixed_sem (set_version p fid vins) rtl nc AnchorOn) s2 t s2').
+        Step (mixed_sem (set_version p fid vins) None nc AnchorOn) s2 t s2').
 Proof.
-  intros f vsrc vins fid guard ancl params s1 s2 p rtl nc i OPTV FINDOPT CURVER MATCH SAFE.
+  intros f vsrc vins fid guard ancl params s1 s2 p nc i OPTV FINDOPT CURVER MATCH SAFE.
   inv MATCH.
   - unfold validator in VALIDATE. rewrite FS_SRC in VALIDATE. repeat do_ok.
     destruct (def_absstate_get ancl d) eqn:ABSDR; inv H0.
@@ -419,10 +419,6 @@ Proof.
       2: apply addstk_asmstep.
       exists t. econstructor. eapply x86_step. simpl. eauto.
     + econstructor. econstructor. eapply rtl_step; eauto.
-    + destruct ms'. eapply addstk_same in BLOCK as [s [APP SAME]]; eauto.
-      2: { unfold block_step. repeat addstk_auto. unfold exec_block_instr. repeat addstk_auto.
-           unfold ASMinterpreter.prim_sem_dec. repeat addstk_auto. }
-      exists t. econstructor. eapply rtl_block_step. eauto.
     + destruct ms2, ms3. eapply addstk_same in CALLEE as [s [APP SAME]]; eauto.
       2: apply addstk_callee.
       eapply addstk_prim_same in NOT_COMPILED as [stk2 [APP2 SAME2]]; try constructor.
@@ -443,18 +439,8 @@ Proof.
       eapply addstk_same in ARGS as [stk3 [APP3 SAME3]]. 2: apply addstk_set_args. subst.
       eapply addstk_prim_same in LOAD as [stk4 [APP4 SAME4]]; try constructor. subst.
       exists E0. econstructor. eapply Call_x86; eauto.
-    + destruct ms2, ms3. eapply addstk_same in CALLEE as [s [APP SAME]].
-      2: apply addstk_callee.
-      eapply addstk_prim_same in COMPILED as [stk2 [APP2 SAME2]]; try constructor.
-      apply app_same in APP2. subst.
-      eapply addstk_same in ARGS as [stk3 [APP3 SAME3]]. 2: apply addstk_set_args. subst.
-      econstructor. econstructor. eapply Call_RTL; eauto.
-    + destruct ms1, ms2. eapply addstk_same in CALLEE as [s [APP SAME]].
-      2: apply addstk_callee.
-      eapply addstk_prim_same in COMPILED as [stk2 [APP2 SAME2]]; try constructor.
-      apply app_same in APP2. subst.
-      eapply addstk_same in ARGS as [stk3 [APP3 SAME3]]. 2: apply addstk_set_args. subst.
-      econstructor. econstructor. eapply Call_RTL_Block; eauto.
+    + inv RTL. 
+    + inv RTL_BLOCK. 
     + destruct ms1. unfold jit.get_retval in RETVAL. destruct loc eqn:LOC.
       * destruct top eqn:TOP; inv RETVAL.
         simpl in OPEN_SF. unfold n_open_stackframe in OPEN_SF. simpl in OPEN_SF.
@@ -511,50 +497,8 @@ Proof.
         ** simpl. unfold n_save. simpl. eauto.
         ** simpl. unfold sbind. unfold n_load_prog_code. simpl. rewrite LOADC. simpl. rewrite LOAD. eauto.
         ** eauto.
-    + destruct loc.
-      * destruct top; inv RETVAL. inv OPEN_SF. unfold n_open_stackframe in H0. simpl in H0.
-        destruct top; inv H0. destruct stk; inv H1. destruct s; inv H0.
-        destruct a, p, p0, p; inv H1. simpl in SETRETVAL. unfold n_save in SETRETVAL. inv SETRETVAL.
-        simpl in NOT_COMPILED. unfold n_check_compiled in NOT_COMPILED. simpl in NOT_COMPILED.
-        destruct (nc ! fid0) eqn:NOT; inv NOT_COMPILED.
-        inv MATCHSTACK. inv MSF.
-        econstructor. econstructor. eapply Return_RTL; eauto.
-        ** simpl. unfold sbind. simpl. eauto.
-        ** simpl. unfold n_open_stackframe. simpl. eauto.
-        ** simpl. unfold n_save. simpl. eauto.
-        ** simpl. unfold n_check_compiled. simpl. rewrite NOT. auto.
-      * inv RETVAL. inv OPEN_SF. unfold n_open_stackframe in H0. simpl in H0.
-        destruct top; inv H0. destruct stk; inv H1. destruct s; inv H0.
-        destruct a, p, p0, p; inv H1. simpl in SETRETVAL. unfold n_save in SETRETVAL. inv SETRETVAL.
-        simpl in NOT_COMPILED. unfold n_check_compiled in NOT_COMPILED. simpl in NOT_COMPILED.
-        destruct (nc ! fid0) eqn:NOT; inv NOT_COMPILED.
-        inv MATCHSTACK. inv MSF.
-        econstructor. econstructor. eapply Return_RTL; simpl; eauto.
-        ** unfold n_open_stackframe. simpl. eauto.
-        ** unfold n_save. simpl. eauto.
-        ** unfold n_check_compiled. simpl. rewrite NOT. auto.
-    + destruct loc.
-      * destruct top; inv RETVAL. inv OPEN_SF. unfold n_open_stackframe in H0. simpl in H0.
-        destruct top; inv H0. destruct stk; inv H1. destruct s; inv H0.
-        destruct a, p, p0, p; inv H1. simpl in SETRETVAL. unfold n_save in SETRETVAL. inv SETRETVAL.
-        simpl in NOT_COMPILED. unfold n_check_compiled in NOT_COMPILED. simpl in NOT_COMPILED.
-        destruct (nc ! fid0) eqn:NOT; inv NOT_COMPILED.
-        inv MATCHSTACK. inv MSF.
-        econstructor. econstructor. eapply Return_RTL_Block; eauto.
-        ** simpl. unfold sbind. simpl. eauto.
-        ** simpl. unfold n_open_stackframe. simpl. eauto.
-        ** simpl. unfold n_save. simpl. eauto.
-        ** simpl. unfold n_check_compiled. simpl. rewrite NOT. auto.
-      * inv RETVAL. inv OPEN_SF. unfold n_open_stackframe in H0. simpl in H0.
-        destruct top; inv H0. destruct stk; inv H1. destruct s; inv H0.
-        destruct a, p, p0, p; inv H1. simpl in SETRETVAL. unfold n_save in SETRETVAL. inv SETRETVAL.
-        simpl in NOT_COMPILED. unfold n_check_compiled in NOT_COMPILED. simpl in NOT_COMPILED.
-        destruct (nc ! fid0) eqn:NOT; inv NOT_COMPILED.
-        inv MATCHSTACK. inv MSF.
-        econstructor. econstructor. eapply Return_RTL_Block; simpl; eauto.
-         ** unfold n_open_stackframe. simpl. eauto.
-         ** unfold n_save. simpl. eauto.
-         ** unfold n_check_compiled. simpl. rewrite NOT. auto.
+    + inv RTL. 
+    + inv RTL_BLOCK. 
     + destruct loc.
       * destruct top; inv RETVAL. inv OPEN_SF. unfold n_open_stackframe in H0. simpl in H0.
         destruct top; inv H0. destruct stk; inv H1.
@@ -590,11 +534,11 @@ Qed.
 
 (** * The Internal Backward Simulation  *)
 Theorem assume_insertion_correct:
-  forall p rtl nc fid guard fs_lbl newp,
+  forall p nc fid guard fs_lbl newp,
     insert_assume fid guard fs_lbl p = OK newp ->
-    backward_internal_simulation p newp rtl rtl nc nc AnchorOn AnchorOn.
+    backward_internal_simulation p newp None None nc nc AnchorOn AnchorOn.
 Proof.
-  intros p rtl nc fid guard fs_lbl newp OPT. unfold insert_assume in OPT. repeat do_ok.
+  intros p nc fid guard fs_lbl newp OPT. unfold insert_assume in OPT. repeat do_ok.
   rename HDO1 into FINDOPTF. rename v into vins. set (vsrc:=current_version f).
   assert (OPTV: insert_assume_version vsrc fid guard fs_lbl (fn_params f) = OK vins) by auto.
   unfold insert_assume_version in HDO0. repeat do_ok. inv HDO. destruct u.
@@ -736,12 +680,6 @@ Proof.
         - exists Zero. econstructor. split.
           + left. apply plus_one. eapply rtl_step; eauto.
           + apply refl_match; auto.
-        - destruct ms'. eapply addstk_same in BLOCK as [s [APP SAME]]; eauto.
-          2: { unfold block_step. repeat addstk_auto. unfold exec_block_instr. repeat addstk_auto.
-               unfold ASMinterpreter.prim_sem_dec. repeat addstk_auto. }
-          exists Zero. econstructor. split.
-          + left. apply plus_one. eapply rtl_block_step; eauto.
-          + apply refl_match. subst. apply app_match; auto. apply match_stack_same.
         - unfold find_function_ir in FINDOPTF.
           unfold set_version, set_version_funlist in GETF. simpl in GETF. rewrite FINDOPTF in GETF.
           poseq_destr fid fid0.
@@ -799,48 +737,8 @@ Proof.
               ** unfold n_check_compiled. simpl. rewrite COMP. eauto.
               ** unfold n_load_prog_code, sbind. simpl. rewrite COMP. eauto.
             * eapply refl_match. apply app_match; auto. apply match_stack_same.
-        - destruct loc.
-          + simpl in CALLEE. repeat sdo_ok. unfold n_load in HDO. simpl in HDO. destruct top; inv HDO.
-            simpl in COMPILED. unfold n_check_compiled in COMPILED. simpl in COMPILED.
-            destruct (nc ! (intpos.pos_of_int i0)) eqn:COMP; inv COMPILED.
-            destruct ms3. eapply addstk_same in ARGS as [s [APP SAME]]; eauto.
-            2: apply addstk_set_args.
-            exists Zero. econstructor. split.
-            * left. apply plus_one. eapply Call_RTL; eauto; simpl.
-              ** unfold n_load, sbind. simpl. eauto.
-              ** unfold n_check_compiled. simpl. rewrite COMP. eauto.
-            * eapply refl_match. subst. apply app_match; auto. apply match_stack_same.
-          + simpl in CALLEE. inv CALLEE.
-            simpl in COMPILED. unfold n_check_compiled in COMPILED. simpl in COMPILED.
-            destruct (nc ! fid0) eqn:COMP; inv COMPILED.
-            destruct ms3. eapply addstk_same in ARGS as [s [APP SAME]]; eauto.
-            2: apply addstk_set_args.
-            exists Zero. econstructor. split.
-            * left. apply plus_one. eapply Call_RTL; eauto; simpl.
-              ** unfold n_load, sbind. simpl. eauto.
-              ** unfold n_check_compiled. simpl. rewrite COMP. eauto.
-            * eapply refl_match. subst. apply app_match; auto. apply match_stack_same.
-        - destruct loc.
-          + simpl in CALLEE. repeat sdo_ok. unfold n_load in HDO. simpl in HDO. destruct top; inv HDO.
-            simpl in COMPILED. unfold n_check_compiled in COMPILED. simpl in COMPILED.
-            destruct (nc ! (intpos.pos_of_int i0)) eqn:COMP; inv COMPILED.
-            destruct ms2. eapply addstk_same in ARGS as [s [APP SAME]]; eauto.
-            2: apply addstk_set_args.
-            exists Zero. econstructor. split.
-            * left. apply plus_one. eapply Call_RTL_Block; eauto; simpl.
-              ** unfold n_load, sbind. simpl. eauto.
-              ** unfold n_check_compiled. simpl. rewrite COMP. eauto.
-            * eapply refl_match. subst. apply app_match; auto. apply match_stack_same.
-          + simpl in CALLEE. inv CALLEE.
-            simpl in COMPILED. unfold n_check_compiled in COMPILED. simpl in COMPILED.
-            destruct (nc ! fid0) eqn:COMP; inv COMPILED.
-            destruct ms2. eapply addstk_same in ARGS as [s [APP SAME]]; eauto.
-            2: apply addstk_set_args.
-            exists Zero. econstructor. split.
-            * left. apply plus_one. eapply Call_RTL_Block; eauto; simpl.
-              ** unfold n_load, sbind. simpl. eauto.
-              ** unfold n_check_compiled. simpl. rewrite COMP. eauto.
-            * eapply refl_match. subst. apply app_match; auto. apply match_stack_same.
+        - inv RTL. 
+        - inv RTL_BLOCK. 
         - destruct loc.
           + simpl in RETVAL; repeat sdo_ok. unfold n_load in HDO. simpl in HDO. destruct top; inv HDO.
             simpl in OPEN_SF. unfold n_open_stackframe in OPEN_SF. simpl in OPEN_SF.
@@ -905,65 +803,9 @@ Proof.
               ** unfold n_save. simpl. eauto.
               ** unfold n_load_prog_code, sbind. simpl.  rewrite LOAD. simpl. rewrite LOAD2. eauto.
             * eapply refl_match. auto.
+        - inv RTL. 
+        - inv RTL_BLOCK. 
         - destruct loc.
-          + simpl in RETVAL. repeat sdo_ok. unfold n_load in HDO. simpl in HDO. destruct top; inv HDO.
-            simpl in OPEN_SF. unfold n_open_stackframe in OPEN_SF. simpl in OPEN_SF.
-            destruct top; inv OPEN_SF. destruct stk'; inv H0. destruct s; inv H1. destruct a, p, p0, p.
-            inv H0. simpl in SETRETVAL. unfold n_save in SETRETVAL. simpl in SETRETVAL. inv SETRETVAL.
-            simpl in NOT_COMPILED. unfold n_check_compiled in NOT_COMPILED. simpl in NOT_COMPILED.
-            destruct (nc!fid0) eqn:NOT; inv NOT_COMPILED.
-            inv MATCHSTACK. inv MSF.
-            exists Zero. econstructor. split.
-            * left. apply plus_one. eapply Return_RTL; eauto; simpl.
-              ** unfold n_load, sbind. simpl. eauto.
-              ** unfold n_open_stackframe. simpl. eauto.
-              ** unfold n_save. simpl. eauto.
-              ** unfold n_check_compiled. simpl. rewrite NOT. eauto.
-            * eapply refl_match. auto.
-          + simpl in RETVAL. inv RETVAL.
-            simpl in OPEN_SF. unfold n_open_stackframe in OPEN_SF. simpl in OPEN_SF.
-            destruct top; inv OPEN_SF. destruct stk'; inv H0. destruct s; inv H1. destruct a, p, p0, p.
-            inv H0. simpl in SETRETVAL. unfold n_save in SETRETVAL. simpl in SETRETVAL. inv SETRETVAL.
-            simpl in NOT_COMPILED. unfold n_check_compiled in NOT_COMPILED. simpl in NOT_COMPILED.
-            destruct (nc!fid0) eqn:NOT; inv NOT_COMPILED.
-            inv MATCHSTACK. inv MSF.
-            exists Zero. econstructor. split.
-            * left. apply plus_one. eapply Return_RTL; eauto; simpl.
-              ** unfold n_load, sbind. simpl. eauto.
-              ** unfold n_open_stackframe. simpl. eauto.
-              ** unfold n_save. simpl. eauto.
-              ** unfold n_check_compiled. simpl. rewrite NOT. eauto.
-            * eapply refl_match. auto.
-        - destruct loc.
-          + simpl in RETVAL. repeat sdo_ok. unfold n_load in HDO. simpl in HDO. destruct top; inv HDO.
-            simpl in OPEN_SF. unfold n_open_stackframe in OPEN_SF. simpl in OPEN_SF.
-            destruct top; inv OPEN_SF. destruct stk'; inv H0. destruct s; inv H1. destruct a, p, p0, p.
-            inv H0. simpl in SETRETVAL. unfold n_save in SETRETVAL. simpl in SETRETVAL. inv SETRETVAL.
-            simpl in NOT_COMPILED. unfold n_check_compiled in NOT_COMPILED. simpl in NOT_COMPILED.
-            destruct (nc!fid0) eqn:NOT; inv NOT_COMPILED.
-            inv MATCHSTACK. inv MSF.
-            exists Zero. econstructor. split.
-            * left. apply plus_one. eapply Return_RTL_Block; eauto; simpl.
-              ** unfold n_load, sbind. simpl. eauto.
-              ** unfold n_open_stackframe. simpl. eauto.
-              ** unfold n_save. simpl. eauto.
-              ** unfold n_check_compiled. simpl. rewrite NOT. eauto.
-            * eapply refl_match. auto.
-          + simpl in RETVAL. inv RETVAL.
-            simpl in OPEN_SF. unfold n_open_stackframe in OPEN_SF. simpl in OPEN_SF.
-            destruct top; inv OPEN_SF. destruct stk'; inv H0. destruct s; inv H1. destruct a, p, p0, p.
-            inv H0. simpl in SETRETVAL. unfold n_save in SETRETVAL. simpl in SETRETVAL. inv SETRETVAL.
-            simpl in NOT_COMPILED. unfold n_check_compiled in NOT_COMPILED. simpl in NOT_COMPILED.
-            destruct (nc!fid0) eqn:NOT; inv NOT_COMPILED.
-            inv MATCHSTACK. inv MSF.
-            exists Zero. econstructor. split.
-            * left. apply plus_one. eapply Return_RTL_Block; eauto; simpl.
-              ** unfold n_load, sbind. simpl. eauto.
-              ** unfold n_open_stackframe. simpl. eauto.
-              ** unfold n_save. simpl. eauto.
-              ** unfold n_check_compiled. simpl. rewrite NOT. eauto.
-            * eapply refl_match. auto.
-         - destruct loc.
           + simpl in RETVAL. repeat sdo_ok. unfold n_load in HDO. simpl in HDO. destruct top; inv HDO.
             simpl in OPEN_SF. unfold n_open_stackframe in OPEN_SF. simpl in OPEN_SF.
             destruct top; inv OPEN_SF. destruct stk'; inv H0.

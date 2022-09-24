@@ -307,20 +307,26 @@ Qed.
 (** * Index and order used in the simulation *)
 (* There is one stuttering step for each inserted Anchor *)
 Inductive anc_index: Type :=
+| Two : anc_index
 | One : anc_index
 | Zero: anc_index.
 
-Inductive anc_order: anc_index -> anc_index -> Type :=
-| order: anc_order Zero One.
+Inductive anc_order: anc_index -> anc_index -> Prop :=
+| order10: anc_order Zero One
+| order20: anc_order Zero Two
+| order21: anc_order One Two.
 
 Lemma wfounded: well_founded anc_order.
 Proof.
-  unfold well_founded. intros a. constructor. intros y H. inv H. constructor. intros y H. inv H.
+  unfold well_founded. intros a. constructor. intros y H. inv H.
+  - constructor. intros y H. inv H.
+  - constructor. intros y H. inv H.
+  - constructor. intros y H. inv H. constructor. intros y H. inv H.
 Qed.
 
 Lemma trans: Relation_Definitions.transitive _ anc_order.
 Proof.
-  unfold Relation_Definitions.transitive. intros x y z H H0. inv H. inv H0.
+  unfold Relation_Definitions.transitive. intros x y z H H0. inv H; inv H0. constructor.
 Qed.
 
 (** * The match_states relation  *)
@@ -348,9 +354,20 @@ Inductive match_states (p:program) (v:version) (fid:fun_id) (lbllist:list label)
       (DEF: defined rms (def_absstate_get lbl def))
       (OPT: anc_insert_version v fid lbllist live def = OK vins)
       (IN: In lbl lbllist),
-      (match_states p v fid lbllist live def) One
+      (match_states p v fid lbllist live def) Two
         (Halt_IR (v, lbl, rms), mkmut s top heap)
         (Halt_IR (vins, lbl, rms), mkmut s' top heap)
+
+| deoptstate_match:
+  forall vins s s' rms newrm top heap lbl
+    (MATCHSTACK: (match_stack v fid lbllist live def) s s')
+    (OPT: anc_insert_version v fid lbllist live def = OK vins)
+    (AGREE: agree rms newrm (live_dr_transf (ver_code v) lbl (live_absstate_get lbl live)))
+    (IN: In lbl lbllist),
+    (match_states p v fid lbllist live def) One
+      (Halt_IR (v, lbl, newrm), mkmut s top heap)
+      (S_Deopt (ir_deopt fid lbl rms), mkmut s' top heap)
+  
 
 | shift_match:                     (* matching at a shifted instruction *)
     forall vins s s' rms top heap lbl fresh
@@ -631,6 +648,11 @@ Proof.
     { eapply defined_deopt_subset_agree; eauto.
       intros r IN'. apply PositiveSet.inter_spec in IN' as [IN' _]. auto. }
     eapply Anchor_go_on; eauto.
+  + rewrite OPT in OPTV. inv OPTV.
+    unfold find_base_version, find_function_ir in FINDBASE.
+    destruct ((prog_funlist p) # fid) eqn:FIND; inv FINDBASE. 
+    right. exists E0. econstructor. eapply Deopt; simpl; eauto.
+    unfold set_version_funlist. rewrite FIND. rewrite PTree.gss. eauto.
   + apply safe_step in SAFE. destruct SAFE as [[t [s'' STEP]]|[r FINAL]].
     2: { inv FINAL. } 
     right. rewrite OPT in OPTV. inv OPTV. simpl. inv STEP.
@@ -980,11 +1002,11 @@ Ltac rmagreeb :=
   match goal with
   | [ |- agree (?rm1 # ?r <- ?v) (?rm2 # ?r <- ?v) ?rs] => apply agree_insert; auto
   | [H: eval_expr ?e ?rmo = OK ?v,
-        H1: agree ?rms ?rmo ?rs |- _] => eapply agree_eval_expr in H; apply agree_sym in H1; eauto
+        H1: agree ?rms ?rmo ?rs |- _] => eapply agree_eval_expr in H; eauto
   | [H: eval_list ?e ?rmo = OK ?v,
-        H1: agree ?rms ?rmo ?rs |- _] => eapply agree_eval_list in H; apply agree_sym in H1; eauto
+        H1: agree ?rms ?rmo ?rs |- _] => eapply agree_eval_list in H; eauto
   | [H: eval_list_reg ?e ?rmo = OK ?v,
-        H1: agree ?rms ?rmo ?rs |- _] => eapply agree_eval_list_reg in H; apply agree_sym in H1; eauto
+        H1: agree ?rms ?rmo ?rs |- _] => eapply agree_eval_list_reg in H; eauto
 
   end.
 
@@ -1014,7 +1036,7 @@ Proof.
   unfold ir_step, ir_int_step in STEP. repeat sdo_ok.
   destruct i; repeat sdo_ok.
   - destruct (in_or_not l l_anc) as [IN | NOTIN].
-    + exists One. econstructor. split.
+    + exists Two. econstructor. split.
       * left. apply plus_one. apply IR_step. unfold ir_step, ir_int_step.
         rewrite SAME_CODE. simpl. eauto.
       * eapply anc_match; eauto. def_ok. rewrite SAME_CODE. auto.
@@ -1023,7 +1045,7 @@ Proof.
         rewrite SAME_CODE. simpl. eauto.
       * eapply opt_match; eauto. def_ok. rewrite SAME_CODE. auto.
   - destruct (in_or_not l l_anc) as [IN | NOTIN].
-    + exists One. econstructor. split.
+    + exists Two. econstructor. split.
       * left. apply plus_one. apply IR_step. unfold ir_step, ir_int_step.
         rewrite SAME_CODE. simpl. rewrite HDO. simpl. eauto.
       * eapply anc_match; eauto. def_ok. rewrite SAME_CODE. auto.
@@ -1042,7 +1064,7 @@ Proof.
       unfold def_dr_transf. rewrite SAME_CODE. apply define_insert. auto.
   - destruct (bool_of_int i) eqn:BOOL; inv HDO.
     + destruct (in_or_not l l_anc) as [IN | NOTIN].
-      * exists One. econstructor. split.
+      * exists Two. econstructor. split.
         ** left. apply plus_one. apply IR_step. unfold ir_step, ir_int_step.
            rewrite SAME_CODE. simpl. rewrite HDO2. simpl. rewrite BOOL. simpl. eauto.
         ** eapply anc_match; eauto. def_ok. rewrite SAME_CODE. auto.
@@ -1051,7 +1073,7 @@ Proof.
            rewrite SAME_CODE. simpl. rewrite HDO2. simpl. rewrite BOOL. simpl. eauto.
         ** eapply opt_match; eauto. def_ok. rewrite SAME_CODE. auto.
     + destruct (in_or_not l0 l_anc) as [IN | NOTIN].
-      * exists One. econstructor. split.
+      * exists Two. econstructor. split.
         ** left. apply plus_one. apply IR_step. unfold ir_step, ir_int_step.
            rewrite SAME_CODE. simpl. rewrite HDO2. simpl. rewrite BOOL. simpl. eauto.
         ** eapply anc_match; eauto. def_ok. rewrite SAME_CODE. auto.
@@ -1064,7 +1086,7 @@ Proof.
       rewrite SAME_CODE. simpl. rewrite HDO. simpl. eauto.
     * eapply refl_match; eauto.
   - destruct (in_or_not l l_anc) as [IN | NOTIN].
-    + exists One. econstructor. split.
+    + exists Two. econstructor. split.
       * left. apply plus_one. apply IR_step. unfold ir_step, ir_int_step.
         rewrite SAME_CODE. simpl. rewrite HDO. simpl. eauto.
       * eapply anc_match; eauto. def_ok. rewrite SAME_CODE. apply define_insert. auto.
@@ -1074,7 +1096,7 @@ Proof.
       * eapply opt_match; eauto. def_ok. rewrite SAME_CODE. apply define_insert. auto.
   - unfold n_memset in HDO3. destruct (Integers.Int.lt i mem_size) eqn:RANGE; inv HDO3.
     destruct (in_or_not l l_anc) as [IN | NOTIN].
-    + exists One. econstructor. split.
+    + exists Two. econstructor. split.
       * left. apply plus_one. apply IR_step. unfold ir_step, ir_int_step.
         rewrite SAME_CODE. simpl. rewrite HDO. simpl. rewrite HDO2. simpl.
         unfold n_memset. rewrite RANGE. unfold sbind. simpl. eauto.
@@ -1087,7 +1109,7 @@ Proof.
   - unfold n_memget in HDO2. destruct (Integers.Int.lt i mem_size) eqn:RANGE; inv HDO2.
     destruct (heap # (intpos.pos_of_int i)) eqn:HEAP; inv H0.
     destruct (in_or_not l l_anc) as [IN | NOTIN].
-    + exists One. econstructor. split.
+    + exists Two. econstructor. split.
       * left. apply plus_one. apply IR_step. unfold ir_step, ir_int_step.
         rewrite SAME_CODE. simpl. rewrite HDO. simpl. 
         unfold n_memget. rewrite RANGE. unfold sbind. simpl. rewrite HEAP. eauto.
@@ -1099,7 +1121,7 @@ Proof.
       * eapply opt_match; eauto. def_ok. rewrite SAME_CODE. apply define_insert. auto.
   - destruct d. repeat sdo_ok. destruct (bool_of_int i) eqn:GUARD; inv HDO.
     + destruct (in_or_not l l_anc) as [IN | NOTIN].
-      * exists One. econstructor. split.
+      * exists Two. econstructor. split.
         ** left. apply plus_one. apply IR_step. unfold ir_step, ir_int_step.
            rewrite SAME_CODE. simpl. rewrite HDO2. simpl. rewrite GUARD. simpl. eauto.
         ** eapply anc_match; eauto. def_ok. rewrite SAME_CODE. auto.
@@ -1118,11 +1140,11 @@ Qed.
 
 (* Proved directly with a backward simulation *)
 Theorem anchor_insertion_correct:
-  forall p fid lbllist newp,
+  forall p nc fid lbllist newp,
     insert_anchor fid lbllist p = OK newp ->
-    backward_internal_simulation p newp.
+    backward_internal_simulation p newp None None nc nc AnchorOn AnchorOn.
 Proof.
-  intros p fid lbllist newp OPT. unfold insert_anchor in OPT. repeat do_ok.
+  intros p nc fid lbllist newp OPT. unfold insert_anchor in OPT. repeat do_ok.
   rename HDO1 into FINDOPTF. rename d into def. rename l into live.
   set (l_anc := (clean_label_list def (ver_code (fn_base f)) lbllist)).
   rename v into vins. unfold check_no_opt in HDO0. destruct (fn_opt f) eqn:NO_OPT; inv HDO0.
@@ -1132,43 +1154,11 @@ Proof.
   set (vins := {|ver_code := c; ver_entry := ver_entry vbase |}). fold vins in OPTV.
   apply Backward_internal_simulation with (bsim_order := anc_order) (bsim_match_states := match_states p vbase fid l_anc live def).
   - apply wfounded.
-  - apply trans.
+  - unfold call_refl, p_reflexive. intros s H. inv H. exists Zero. destruct ms. apply refl_match.
+    apply match_stack_same.
 
-  - unfold reflexive_forge. intros synchro stack r1 s1 ms FORGE.
-    destruct synchro; simpl in FORGE; repeat do_ok; simpl.
-    + poseq_destr f0 fid.  (* is the called function the optimized one? *)
-      * erewrite find_function_same; eauto. simpl. rewrite HDO1. simpl.
-        rewrite FINDOPTF in HDO3. inv HDO3.
-        assert (CURRENT:  vbase  = (current_version f1)).
-        { unfold vbase. unfold current_version. rewrite NO_OPT. auto. }
-        rewrite <- CURRENT.
-        { destruct (in_or_not (ver_entry(current_version f1)) l_anc) as [IN|NOTIN]; repeat (esplit; eauto).
-          - unfold vbase. eapply anc_match; eauto.
-            + apply match_stack_same.
-            + unfold clean_label_list in l_anc.
-              apply interpreter_proof.init_regs_correct in HDO1.
-              eapply def_analyze_init; eauto.
-            + rewrite <- CURRENT in IN. unfold vbase in IN. auto.
-          - eapply opt_match.
-            + apply match_stack_same.
-            + apply interpreter_proof.init_regs_correct in HDO1.
-              eapply def_analyze_init; eauto.
-            + auto.
-            + rewrite <- CURRENT in NOTIN. auto.  }
-      * erewrite <- find_function_unchanged; eauto. rewrite HDO3. simpl. rewrite HDO1. simpl.
-        repeat (esplit; eauto). econstructor. apply match_stack_same.
-    + destruct stack; try destruct s; inv FORGE.
-      * repeat (esplit; eauto). constructor.
-      * repeat (esplit; eauto). simpl. econstructor. apply match_stack_same.
-    + destruct d. repeat do_ok. simpl. rewrite <- base_version_unchanged. rewrite HDO1. simpl.
-      repeat (esplit; eauto). simpl. econstructor. apply match_stack_same.
-    + inv FORGE. destruct r1; repeat (esplit; eauto).
-      * simpl. eapply refl_match. apply match_stack_same.
-      * simpl. eapply final_match.
-
-  - intros i s1 s2 r MATCH SAFE FINAL. inv FINAL. inv MATCH. exists (Final r ms). split.
-    apply star_refl. constructor.
-
+  - intros i s1 s2 r H H0 H1. inv H1. econstructor. split. apply star_refl. inv H. constructor.
+    
   - intros. eapply progress_preserved; eauto. unfold find_base_version. rewrite FINDOPTF. eauto.
     apply nodup_clean. apply used_clean.
 
@@ -1178,305 +1168,396 @@ Proof.
     inv MATCH.
 
     + rewrite OPT in OPTV. inv OPTV. (* anc_match *)
+      assert (IN': In lbl l_anc) by auto.
       eapply code_anc in IN as [fresh [rs_def [rs_live [GETDEF [GETLIVE [ANCCODE [FRESH [nextinstr [CODESRC CODEOPT]]]]]]]]]; eauto.
       inv STEP.
-      { inv STEP0; rewrite CODE in ANCCODE; inv ANCCODE. }
-      { exists Zero. exists (State s vbase lbl rms ms). split. (* stuttering, ANC goes on  *)
+      { unfold ir_step, ir_int_step in STEP0. repeat sdo_ok. destruct i; repeat sdo_ok; inv ANCCODE.
+        inv HDO0. }
+      { exists Zero. econstructor. split. (* stuttering, Anchor goes on *)
         - right. split. 2:constructor. apply star_refl.
-        - inv DEOPT_COND. rewrite CODE in ANCCODE. inv ANCCODE. inv SYNTH. eapply shift_match; auto.
-          unfold not; intros. apply DEF in H as [i CODE']. rewrite CODE' in FRESH. inv FRESH.
-          rewrite CODESRC. rewrite CODEOPT. auto. }
-      { exists Zero. exists (State s vbase lbl rms ms). split. (* stuttering, ANC deoptimizes *)
+        - simpl in CODEOPT. simpl in ANCHOR. simpl in ANCCODE. rewrite ANCHOR in ANCCODE. inv ANCCODE.
+          eapply shift_match; auto.
+          + unfold not; intros. apply DEF in H as [i CODE']. rewrite CODE' in FRESH. inv FRESH.
+          + simpl. rewrite CODESRC. rewrite CODEOPT. auto. }
+      { exists One. econstructor. split. (* stuttering, Anchor deoptimizes *)
         - right. split. 2:constructor. apply star_refl.
-        - inv DEOPT_COND. rewrite CODE in ANCCODE. inv ANCCODE. inv SYNTH. simpl.
-          assert (BASE: vbase = newver).
-          { simpl in FINDF. rewrite <- base_version_unchanged in FINDF. unfold find_base_version in FINDF.
-            rewrite FINDOPTF in FINDF. inv FINDF. unfold vbase. auto. }
-          rewrite <- BASE. eapply deopt_match; eauto.
-          rewrite GETDEF in DEF0.
-          eapply defined_deopt_subset_agree in DEF0 as DEF0'; eauto.
-          2: { intros r IN. apply IN. }        
+        - simpl in CODEOPT. simpl in ANCHOR. simpl in ANCCODE. rewrite ANCHOR in ANCCODE. inv ANCCODE.
+          eapply deoptstate_match; eauto.
+          rewrite GETDEF in DEF0. eapply defined_deopt_subset_agree in DEF0 as DEF0'; eauto.
+          2: { intros r IN. apply PositiveSet.inter_spec in IN as [IN _]. eauto. }
           destruct DEF0' as [rmdeopt [UPDATE' AGREE]].
-          eapply deopt_subset_agree in UPDATE as AGREE'; eauto.
+          eapply deopt_subset_agree in BUILD as AGREE'; eauto.
           2: { intros r IN. apply PositiveSet.inter_spec in IN as [IN _]. auto. }
           intros r IN.
           destruct (PositiveSet.mem r rs_def) eqn:Emem.
-          + apply AGREE'. apply PositiveSet.inter_spec. split; auto.
+          + symmetry. apply AGREE'. apply PositiveSet.inter_spec. split; auto.
           + assert (rms ! r = None).
             { unfold defined in DEF0. specialize (DEF0 r).
               rewrite <- PositiveSet.mem_spec in DEF0.
               rewrite Emem in DEF0. destruct (rms ! r) eqn:Er; auto.
-              assert (exists v0, Some v = Some v0).
-              { exists v. auto. }
+              assert (exists v, Some i = Some v) by eauto.
               apply DEF0 in H. discriminate. }
-            rewrite H. symmetry. eapply update_not_captured; eauto.
-            intros IN'. apply PositiveSet.inter_spec in IN' as [IN' _].
-            rewrite <- PositiveSet.mem_spec in IN'.
-            rewrite IN' in Emem. discriminate. }
+            rewrite H. eapply update_not_captured; eauto.
+            intros IN''. apply PositiveSet.inter_spec in IN'' as [IN'' _].
+            rewrite <- PositiveSet.mem_spec in IN''.
+            rewrite IN'' in Emem. discriminate. }
+
+    + rewrite OPT in OPTV. inv OPTV. (* deoptstate_match *)
+      inv STEP. simpl in TARGET. inv TARGET. simpl in BUILD_RM. inv BUILD_RM.
+      simpl in FINDF. unfold set_version_funlist in FINDF. unfold find_function_ir in FINDOPTF.
+      rewrite FINDOPTF in FINDF. rewrite PTree.gss in FINDF. inv FINDF. simpl.
+      simpl. exists Zero. econstructor. split.
+      * right. split. 2:constructor. eapply star_refl.
+      * eapply deopt_match; auto. apply agree_sym. auto.
+      
     + rewrite OPT in OPTV. inv OPTV. (* shift_match *)
       inv STEP.
       { eapply lowered_diagram; eauto. }
-      * inv DEOPT_COND.         (* Anchor steps can't happen in shift_match *)
-        rewrite CODE in SAME_CODE. unfold vbase in SAME_CODE. apply (base_no_spec f) in SAME_CODE.
-        exfalso. apply SAME_CODE. constructor.
-      * inv DEOPT_COND.         (* Anchor steps can't happen in shift_match *)
-        rewrite CODE in SAME_CODE. unfold vbase in SAME_CODE. apply (base_no_spec f) in SAME_CODE.
-        exfalso. apply SAME_CODE. constructor.
+      * admit.                  (* TODO: I must reuse base_no_spec *)
+      * admit.                  (* TODO: I must reuse base_no_spec *)
+        (* inv DEOPT_COND.         (* Anchor steps can't happen in shift_match *) *)
+        (* rewrite CODE in SAME_CODE. unfold vbase in SAME_CODE. apply (base_no_spec f) in SAME_CODE. *)
+        (* exfalso. apply SAME_CODE. constructor. *)
 
     + rewrite OPT in OPTV. inv OPTV. (* opt_match *)
       eapply code_preservation in NOTIN as SAME_CODE; eauto.
       inv STEP.
       { eapply lowered_diagram; eauto. }
-      * inv DEOPT_COND. (* Anchor steps can't happen in opt_match *)
-        rewrite CODE in SAME_CODE. unfold vbase in SAME_CODE. apply (base_no_spec f) in SAME_CODE.
-        exfalso. apply SAME_CODE. constructor.
-      * inv DEOPT_COND. (* Anchor steps can't happen in opt_match *)
-        rewrite CODE in SAME_CODE. unfold vbase in SAME_CODE. apply (base_no_spec f) in SAME_CODE.
-        exfalso. apply SAME_CODE. constructor.
+      * admit.                  (* TODO: I must reuse base_no_spec *)
+      * admit.                  (* TODO: I must reuse base_no_spec *)
+      (* * inv DEOPT_COND. (* Anchor steps can't happen in opt_match *) *)
+      (*   rewrite CODE in SAME_CODE. unfold vbase in SAME_CODE. apply (base_no_spec f) in SAME_CODE. *)
+      (*   exfalso. apply SAME_CODE. constructor. *)
 
-    + inv STEP.                 (* refl_match *)
-      { inv STEP0.
-        - exists Zero. exists (State s v' next rms ms). split.
-          + left. apply plus_one. apply nd_exec_lowered. eapply exec_Nop; eauto.
-          + eapply refl_match; eauto.
-        - exists Zero. exists (State s v' next (rms#reg<-v) ms). split.
-          + left. apply plus_one. apply nd_exec_lowered. eapply exec_Op; eauto.
+    +
+      rename s into stk. rename s' into stk'. rename HDO into INSERT.
+      { inv STEP.                 (* refl_match *)
+        - destruct ms1. eapply addstk_same in STEP0 as [s [APP SAME]]; eauto.
+          2: apply addstk_irstep.
+          exists Zero. econstructor. split.
+          + left. apply plus_one. eapply IR_step; eauto.
+          + apply refl_match. subst. apply app_match; auto. apply match_stack_same.
+        - destruct ms1. eapply addstk_same in STEP0 as [s [APP SAME]]; eauto.
+          2: apply addstk_asmstep.
+          exists Zero. econstructor. split.
+          + left. apply plus_one. eapply x86_step; eauto.
+          + apply refl_match. subst. apply app_match; auto. apply match_stack_same.
+        - exists Zero. econstructor. split.
+          + left. apply plus_one. eapply rtl_step; eauto.
           + apply refl_match; auto.
-        - exists Zero. exists (State s v' next newrm ms). split.
-          + left. apply plus_one. apply nd_exec_lowered. eapply exec_Move; eauto.
-          + apply refl_match; auto.
-        - exists Zero. exists (State s v' (pc_cond v iftrue iffalse) rms ms). split.
-          + left. apply plus_one. apply nd_exec_lowered. eapply exec_Cond; eauto.
-          + apply refl_match; auto.
-        - poseq_destr fid0 fid.
-          + destruct (in_or_not (ver_entry vbase) l_anc) as [IN|NOTIN].
-            * exists One. exists (State (Stackframe retreg v' next rms ::s) (current_version f) (ver_entry (current_version f)) newrm ms). split.
-              ** left. apply plus_one. apply nd_exec_lowered. eapply exec_Call; eauto.
-                 simpl in FINDF. eapply same_params in FINDOPTF; eauto.
-                 rewrite FINDOPTF. auto.
-              ** simpl in FINDF. erewrite find_function_same in FINDF; eauto. inv FINDF.
-                 unfold current_version. rewrite NO_OPT. simpl.
-                 apply anc_match; auto.
-                 2: { eapply def_analyze_init; eauto. }
-                 constructor; auto. eapply frame_same; eauto.
-            * exists Zero. exists (State (Stackframe retreg v' next rms ::s) (current_version f) (ver_entry (current_version f)) newrm ms). split.
-              ** left. apply plus_one. apply nd_exec_lowered. eapply exec_Call; eauto.
-                 simpl in FINDF. eapply same_params in FINDOPTF; eauto.
-                 rewrite FINDOPTF. auto.
-              ** simpl in FINDF. erewrite find_function_same in FINDF; eauto. inv FINDF.
-                 unfold current_version. rewrite NO_OPT. simpl.
-                 apply opt_match; auto.
-                 2: { eapply def_analyze_init; eauto. }
-                 constructor; auto. constructor. 
-          + simpl in FINDF. rewrite <- find_function_unchanged in FINDF; auto.
-            exists Zero. exists (State (Stackframe retreg v' next rms :: s) (current_version func) (ver_entry (current_version func)) newrm ms). split.
-            * left. apply plus_one. apply nd_exec_lowered. eapply exec_Call; eauto.
-            * apply refl_match; auto. constructor; auto. constructor.
-        - inv MATCHSTACK. inv MSF.
-          + exists Zero. exists (State s1 fprev next (rmprev#retreg<-retval) ms). split.
-            * left. apply plus_one. apply nd_exec_lowered. eapply exec_Return; eauto.
-            * apply refl_match; auto.
-          + exists Zero. exists (State s1 vbase next (rms0#retreg<-retval) ms). split.
-            * left. apply plus_one. apply nd_exec_lowered. eapply exec_Return; eauto.
-            * apply deopt_match; auto.
-          + destruct (in_or_not next l_anc).
-            * exists One. exists (State s1 vbase next (rmprev#retreg<-retval) ms). split.
-              ** left. apply plus_one. apply nd_exec_lowered. eapply exec_Return; eauto.
-              ** apply anc_match; auto.
-            * exists Zero. exists (State s1 vbase next (rmprev#retreg<-retval) ms). split.
-              ** left. apply plus_one. apply nd_exec_lowered. eapply exec_Return; eauto.
-              ** apply opt_match; auto.
-        - inv MATCHSTACK. exists One. exists (Final retval ms). split.
-          + left. apply plus_one. apply nd_exec_lowered. eapply exec_Return_Final; eauto.
-          + apply final_match; auto.
-        - exists Zero. exists (State s v' next rms ms). split.
-          + left. apply plus_one. apply nd_exec_lowered. eapply exec_Printexpr; eauto.
-          + apply refl_match; auto.
-        - exists Zero. exists (State s v' next rms ms). split.
-          + left. apply plus_one. apply nd_exec_lowered. eapply exec_Printstring; eauto.
-          + apply refl_match; auto.
-        - exists Zero. exists (State s v' next rms newms). split.
-          + left. apply plus_one. apply nd_exec_lowered. eapply exec_Store; eauto.
-          + apply refl_match; auto.
-        - exists Zero. exists (State s v' next (rms#reg<-val) ms). split.
-          + left. apply plus_one. apply nd_exec_lowered. eapply exec_Load; eauto.
-          + apply refl_match; auto.
-        - exists Zero. exists (State s v' next rms ms). split.
-          + left. apply plus_one. apply nd_exec_lowered. eapply exec_Assume_holds; eauto.
-          + apply refl_match; auto.
-        - exists Zero. exists (State (synth++s) newver la newrm ms). split.
-          + left. apply plus_one. apply nd_exec_lowered. eapply exec_Assume_fails; eauto.
-            erewrite base_version_unchanged; eauto.
-            * apply FINDF.
-            * apply synth_frame_unchanged in SYNTH. apply SYNTH.
-          + apply refl_match; auto. apply match_app; auto. }
-      * inv DEOPT_COND. simpl in FINDF. rewrite <- base_version_unchanged in FINDF.
-        apply synth_frame_unchanged in SYNTH.
-        exists Zero. exists (State s v' next rms ms). split.
-        left. apply plus_one. eapply nd_exec_Anchor_go_on.
-        econstructor; eauto. apply refl_match; auto.
-      * inv DEOPT_COND. simpl in FINDF. rewrite <- base_version_unchanged in FINDF.
-        apply synth_frame_unchanged in SYNTH.
-        exists Zero. exists (State (synth ++ s) newver la newrm ms). split.
-        left. apply plus_one. eapply nd_exec_Anchor_deopt.
-        econstructor; eauto. apply refl_match; auto. apply match_app; auto.
+        - unfold find_function_ir in FINDOPTF.
+          unfold set_version, set_version_funlist in GETF. simpl in GETF. rewrite FINDOPTF in GETF.
+          poseq_destr fid fid0.
+          +                     (* Calling the optimized function *)
+            assert (CURRENT: current_version f = vbase).
+            { unfold current_version. rewrite NO_OPT. auto. }
+            assert (ENTRY: ver_entry (current_version f) = ver_entry (fn_base f)).
+            { unfold current_version. rewrite NO_OPT. auto. }
+            destruct ms2. eapply addstk_same in CALLEE as [s [APP SAME]].
+            2: apply addstk_callee.
+            simpl in NOT_COMPILED. unfold n_check_compiled in NOT_COMPILED. simpl in NOT_COMPILED.
+            destruct (nc!fid0) eqn:NOT; inv NOT_COMPILED.
+            destruct ms3. eapply addstk_same in ARGS as [s2 [APP2 SAME2]].
+            rewrite PTree.gss in GETF. inv GETF.
+            2: apply addstk_get_args.
+            destruct (in_or_not (ver_entry (current_version f)) l_anc) as [IN | NOTIN]. (* entry is Anchor *)
+            { exists Two. econstructor. split.
+              + left. apply plus_one. eapply Call_IR; eauto.
+                simpl. unfold n_check_compiled. simpl. rewrite NOT. eauto.
+              + simpl. rewrite current_version_set_version.  eapply anc_match; auto.
+                * apply match_app; auto. apply match_app; auto.
+                * eapply def_analyze_init; eauto.
+                * rewrite <- ENTRY. auto. }
+            { exists Zero. econstructor. split. (* entry is not Anchor *)
+              + left. apply plus_one. eapply Call_IR; eauto.
+                simpl. unfold n_check_compiled. simpl. rewrite NOT. eauto.
+              + simpl. eapply opt_match; eauto.
+                * apply match_app; auto. apply match_app; auto.
+                * eapply def_analyze_init; eauto.
+                * rewrite <- ENTRY. auto. }
+          +   (* calling another function *)
+            rewrite PTree.gso in GETF; auto.
+            destruct ms2. eapply addstk_same in CALLEE as [s [APP SAME]].
+            2: apply addstk_callee.
+            simpl in NOT_COMPILED. unfold n_check_compiled in NOT_COMPILED. simpl in NOT_COMPILED.
+            destruct (nc!fid0) eqn:NOT; inv NOT_COMPILED.
+            destruct ms3. eapply addstk_same in ARGS as [s2 [APP2 SAME2]].
+            2: apply addstk_get_args.
+            exists Zero. econstructor. split.
+            * left. apply plus_one. eapply Call_IR; eauto; simpl.
+              ** unfold n_check_compiled. simpl. rewrite NOT. eauto.
+            * eapply refl_match. subst. apply match_app. apply match_app. auto.
+        - destruct loc.
+          + simpl in CALLEE. repeat sdo_ok. unfold n_load in HDO. simpl in HDO. destruct top; inv HDO.
+            simpl in COMPILED. unfold n_check_compiled in COMPILED. simpl in COMPILED.
+            destruct (nc ! (intpos.pos_of_int i)) eqn:COMP; inv COMPILED.
+            destruct ms3. eapply addstk_same in ARGS as [s [APP SAME]]; eauto.
+            2: apply addstk_set_args.
+            simpl in LOAD. repeat sdo_ok. unfold n_load_prog_code in HDO. simpl in HDO.
+            rewrite COMP in HDO. inv HDO.
+            exists Zero. econstructor. split.
+            * left. apply plus_one. eapply Call_x86; eauto; simpl.
+              ** unfold n_load, sbind. simpl. eauto.
+              ** unfold n_check_compiled. simpl. rewrite COMP. eauto.
+              ** unfold n_load_prog_code, sbind. simpl. rewrite COMP. eauto.
+            * eapply refl_match. apply app_match; auto. apply match_stack_same.
+          + simpl in CALLEE. inv CALLEE.
+            simpl in COMPILED. unfold n_check_compiled in COMPILED. simpl in COMPILED.
+            destruct (nc ! fid0) eqn:COMP; inv COMPILED.
+            destruct ms3. eapply addstk_same in ARGS as [s [APP SAME]]; eauto.
+            2: apply addstk_set_args.
+            simpl in LOAD. repeat sdo_ok. unfold n_load_prog_code in HDO. simpl in HDO.
+            rewrite COMP in HDO. inv HDO.
+            exists Zero. econstructor. split.
+            * left. apply plus_one. eapply Call_x86; eauto; simpl.
+              ** unfold n_load, sbind. simpl. eauto.
+              ** unfold n_check_compiled. simpl. rewrite COMP. eauto.
+              ** unfold n_load_prog_code, sbind. simpl. rewrite COMP. eauto.
+            * eapply refl_match. apply app_match; auto. apply match_stack_same.
+        - inv RTL. 
+        - inv RTL_BLOCK. 
+        - destruct loc.
+          + simpl in RETVAL; repeat sdo_ok. unfold n_load in HDO. simpl in HDO. destruct top; inv HDO.
+            simpl in OPEN_SF. unfold n_open_stackframe in OPEN_SF. simpl in OPEN_SF.
+            destruct top; inv OPEN_SF. destruct stk'; inv H0. destruct s; inv H1.
+            2: { destruct a,p,p0,p. inv H0. }
+            inv MATCHSTACK. inv MSF.
+            * exists Zero. econstructor. split. (* Returning to the same function *)
+              ** left. apply plus_one. eapply Return_IR; eauto.
+                 *** simpl. unfold n_load, sbind. simpl. eauto.
+                 *** simpl. unfold n_open_stackframe. simpl. eauto.
+              ** eapply refl_match; eauto.
+            * exists Zero. econstructor. split. (* Returning to the base IR version after deopt *)
+              ** left. apply plus_one. eapply Return_IR; eauto.
+                 *** simpl. unfold n_load, sbind. simpl. eauto.
+                 *** simpl. unfold n_open_stackframe. simpl. eauto.
+              ** eapply deopt_match; eauto.
+            * destruct (in_or_not pc l_anc) as [IN | NOTIN]. (* Returning to the opt version *)
+              { exists Two. econstructor. split. 
+                ** left. apply plus_one. eapply Return_IR; eauto.
+                   *** simpl. unfold n_load, sbind. simpl. eauto.
+                   *** simpl. unfold n_open_stackframe. simpl. eauto.
+                ** eapply anc_match; eauto. }
+              { exists Zero. econstructor. split.
+                ** left. apply plus_one. eapply Return_IR; eauto.
+                   *** simpl. unfold n_load, sbind. simpl. eauto.
+                   *** simpl. unfold n_open_stackframe. simpl. eauto.
+                ** eapply opt_match; eauto. }
+          + simpl in RETVAL. inv RETVAL.
+            simpl in OPEN_SF. unfold n_open_stackframe in OPEN_SF. simpl in OPEN_SF.
+            destruct top; inv OPEN_SF. destruct stk'; inv H0. destruct s; inv H1.
+            2: { destruct a,p,p0,p. inv H0. }
+            inv MATCHSTACK. inv MSF.
+            * exists Zero. econstructor. split. (* Returning to the same function *)
+              ** left. apply plus_one. eapply Return_IR; eauto.
+                 *** simpl. eauto.
+                 *** simpl. unfold n_open_stackframe. simpl. eauto.
+              ** eapply refl_match; eauto.
+            * exists Zero. econstructor. split. (* Returning to the base IR version after deopt *)
+              ** left. apply plus_one. eapply Return_IR; eauto.
+                 *** simpl. eauto.
+                 *** simpl. unfold n_open_stackframe. simpl. eauto.
+              ** eapply deopt_match; eauto.
+            * destruct (in_or_not pc l_anc) as [IN | NOTIN]. (* Returning to the opt version *)
+              { exists Two. econstructor. split. 
+                ** left. apply plus_one. eapply Return_IR; eauto.
+                   *** simpl. unfold n_load, sbind. simpl. eauto.
+                   *** simpl. unfold n_open_stackframe. simpl. eauto.
+                ** eapply anc_match; eauto. }
+              { exists Zero. econstructor. split.
+                ** left. apply plus_one. eapply Return_IR; eauto.
+                   *** simpl. unfold n_load, sbind. simpl. eauto.
+                   *** simpl. unfold n_open_stackframe. simpl. eauto.
+                ** eapply opt_match; eauto. }
+        - destruct loc.
+          + simpl in RETVAL. repeat sdo_ok. unfold n_load in HDO. simpl in HDO. destruct top; inv HDO.
+            simpl in OPEN_SF. unfold n_open_stackframe in OPEN_SF. simpl in OPEN_SF.
+            destruct top; inv OPEN_SF. destruct stk'; inv H0. destruct s; inv H1. destruct a, p, p0, p.
+            inv H0. simpl in SET_RETVAL. unfold n_save in SET_RETVAL. simpl in SET_RETVAL. inv SET_RETVAL.
+            simpl in LOAD_CONT. repeat sdo_ok. destruct a.
+            unfold n_load_prog_code in HDO. simpl in HDO. destruct (nc!(intpos.pos_of_int caller_fid)) eqn:LOAD; inv HDO.
+            simpl in LOAD_CONT.
+            destruct (t!(intpos.pos_of_int cont_lbl)) eqn:LOAD2; inv LOAD_CONT.
+            inv MATCHSTACK. inv MSF.
+            exists Zero. econstructor. split.
+            * left. apply plus_one. eapply Return_x86; eauto; simpl.
+              ** unfold n_load, sbind. simpl. eauto.
+              ** unfold n_open_stackframe. simpl. eauto.
+              ** unfold n_save. simpl. eauto.
+              ** unfold n_load_prog_code, sbind. simpl.  rewrite LOAD. simpl. rewrite LOAD2. eauto.
+            * eapply refl_match. auto.
+          + simpl in RETVAL. inv RETVAL.
+            simpl in OPEN_SF. unfold n_open_stackframe in OPEN_SF. simpl in OPEN_SF.
+            destruct top; inv OPEN_SF. destruct stk'; inv H0. destruct s; inv H1. destruct a, p, p0, p.
+            inv H0. simpl in SET_RETVAL. unfold n_save in SET_RETVAL. simpl in SET_RETVAL. inv SET_RETVAL.
+            simpl in LOAD_CONT. repeat sdo_ok. destruct a.
+            unfold n_load_prog_code in HDO. simpl in HDO. destruct (nc!(intpos.pos_of_int caller_fid)) eqn:LOAD; inv HDO.
+            simpl in LOAD_CONT.
+            destruct (t!(intpos.pos_of_int cont_lbl)) eqn:LOAD2; inv LOAD_CONT.
+            inv MATCHSTACK. inv MSF.
+            exists Zero. econstructor. split.
+            * left. apply plus_one. eapply Return_x86; eauto; simpl.
+              ** unfold n_load, sbind. simpl. eauto.
+              ** unfold n_open_stackframe. simpl. eauto.
+              ** unfold n_save. simpl. eauto.
+              ** unfold n_load_prog_code, sbind. simpl.  rewrite LOAD. simpl. rewrite LOAD2. eauto.
+            * eapply refl_match. auto.
+        - inv RTL. 
+        - inv RTL_BLOCK. 
+        - destruct loc.
+          + simpl in RETVAL. repeat sdo_ok. unfold n_load in HDO. simpl in HDO. destruct top; inv HDO.
+            simpl in OPEN_SF. unfold n_open_stackframe in OPEN_SF. simpl in OPEN_SF.
+            destruct top; inv OPEN_SF. destruct stk'; inv H0.
+            2: { destruct s; inv H1. destruct a, p, p0, p. inv H0. }
+            inv MATCHSTACK.
+            exists Zero. econstructor. split.
+            * left. apply plus_one. eapply Return_EOE; eauto; simpl.
+              ** unfold n_load, sbind. simpl. eauto.
+              ** unfold n_open_stackframe. simpl. eauto.
+            * eapply refl_match; eauto. constructor.
+          + simpl in RETVAL. inv RETVAL.
+            simpl in OPEN_SF. unfold n_open_stackframe in OPEN_SF. simpl in OPEN_SF.
+            destruct top; inv OPEN_SF. destruct stk'; inv H0.
+            2: { destruct s; inv H1. destruct a, p, p0, p. inv H0. }
+            inv MATCHSTACK.
+            exists Zero. econstructor. split.
+            * left. apply plus_one. eapply Return_EOE; eauto; simpl.
+              ** unfold n_load, sbind. simpl. eauto.
+              ** unfold n_open_stackframe. simpl. eauto.
+            * eapply refl_match; eauto. constructor.
+        - destruct ms1, ms2. eapply addstk_same in TARGET as [s [APP SAME]]; eauto.
+          2: apply addstk_target.
+          eapply addstk_same in BUILD_RM as [s2 [APP2 SAME2]]; eauto.
+          2: apply addstk_build.
+          unfold find_function_ir in FINDOPTF.
+          unfold set_version, set_version_funlist in FINDF. simpl in FINDF.
+          rewrite FINDOPTF in FINDF.
+          poseq_destr ftgt fid.
+          + exists Zero. econstructor. split.
+            * left. apply plus_one. eapply Deopt; eauto; simpl.
+            * rewrite PTree.gss in FINDF. inv FINDF. rewrite base_version_set_version.
+              eapply refl_match; eauto. apply match_app. apply match_app. auto.
+          + exists Zero. econstructor. split.
+            * left. apply plus_one. eapply Deopt; eauto; simpl.
+              ** rewrite PTree.gso in FINDF; eauto.
+            * eapply refl_match; eauto. subst. apply match_app. apply match_app. auto.
+        - destruct ms1. eapply addstk_same in PRIM_CALL as [s [APP SAME]].
+          2: { unfold ASMinterpreter.prim_sem_dec. repeat addstk_auto. }
+          exists Zero. econstructor. split.
+          + left. apply plus_one. eapply RTL_prim; eauto.
+          + eapply refl_match. subst. apply match_app. auto.
+        - exists Zero. econstructor. split.
+          + left. apply plus_one. eapply RTL_end; eauto.
+          + eapply refl_match. auto.
+        - exists Zero. econstructor. split.
+          + left. apply plus_one. eapply RTL_block_end; eauto.
+          + eapply refl_match. auto.
+        - exists Zero. econstructor. split.
+          + left. apply plus_one. eapply Anchor_go_on; eauto.
+          + eapply refl_match. auto.
+        - exists Zero. econstructor. split.
+          + left. apply plus_one. eapply Anchor_deopt; eauto.
+          + eapply refl_match. auto.
+      }
+
 
     + inv STEP.                (* deopt_match *)
-      { inv STEP0; unfold live_dr_transf in AGREE; rewrite CODE in AGREE.
-        - exists Zero. exists (State s vbase next rms ms). split.
-          + left. apply plus_one. apply nd_exec_lowered. eapply exec_Nop; eauto.
-          + apply deopt_match; auto.            
-            eapply agree_transfer; eauto. simpl. left. auto.
-        - exists Zero. exists (State s vbase next (rms#reg<-v) ms). split.
-          + left. apply plus_one. apply nd_exec_lowered.
-            eapply exec_Op; eauto. rmagreeb.
-          + apply deopt_match; auto. eapply agree_transfer; eauto.
-            2: { apply agree_insert_dead. eapply expr_live_agree. eauto. }
-            simpl. left. auto.
-        - eapply agree_update_movelist in UPDATE as UPDATE'; eauto.
-          destruct UPDATE' as [rm1u [UPDATE' NEXT]]; eauto.
-          exists Zero. exists (State s vbase next rm1u ms). split.
-          + left. apply plus_one. apply nd_exec_lowered. eapply exec_Move; eauto.
-          + apply deopt_match; auto. eapply agree_transfer; eauto.
-            2: { apply agree_movelist_dead with (ml := ml) (rms := rms) (rmo := rmo); auto. }
-            simpl. left. auto.         
-        - exists Zero. exists (State s vbase (pc_cond v iftrue iffalse) rms ms). split.
-          + left. apply plus_one. apply nd_exec_lowered.
-            eapply exec_Cond; eauto. rmagreeb.
-          + apply deopt_match; auto. eapply agree_transfer; eauto.
-            2: { eapply expr_live_agree. eauto. }
-            simpl. destruct v; destruct z; simpl;
-                     try (left; reflexivity); try (right; reflexivity);
-                       try (right; left; reflexivity).
-        - poseq_destr fid0 fid.
-          + destruct (in_or_not (ver_entry vbase) l_anc) as [IN|NOTIN].
-            * exists One. exists (State (Stackframe retreg vbase next rms ::s) (current_version f) (ver_entry (current_version f)) newrm ms). split.
-              ** left. apply plus_one. apply nd_exec_lowered.
-                 eapply exec_Call; eauto. rmagreeb.
-                 simpl in FINDF. eapply same_params in FINDOPTF; eauto.
-                 rewrite FINDOPTF. auto.
-              ** simpl in FINDF. erewrite find_function_same in FINDF; eauto. inv FINDF.
-                 unfold current_version. rewrite NO_OPT. simpl.
-                 apply anc_match; auto.
-                 2: { eapply def_analyze_init; eauto. }
-                 constructor; auto. eapply frame_deopt; eauto.
-                 intros. eapply agree_transfer; eauto. 
-                 2: { apply agree_insert_dead.
-                      eapply expr_list_live_agree. eauto. }
-                 simpl. left. auto.
-            * exists Zero. exists (State (Stackframe retreg vbase next rms ::s) (current_version f) (ver_entry (current_version f)) newrm ms). split.
-              ** left. apply plus_one. apply nd_exec_lowered.
-                 eapply exec_Call; eauto. rmagreeb.
-                 simpl in FINDF. eapply same_params in FINDOPTF; eauto.
-                 rewrite FINDOPTF. auto.
-              ** simpl in FINDF. erewrite find_function_same in FINDF; eauto. inv FINDF.
-                 unfold current_version. rewrite NO_OPT. simpl.
-                 apply opt_match; auto.
-                 2: { eapply def_analyze_init; eauto. }
-                 constructor; auto. constructor.
-                 intros. eapply agree_transfer; eauto. 
-                 2: { apply agree_insert_dead.
-                      eapply expr_list_live_agree. eauto. }
-                 simpl. left. auto.
-          + simpl in FINDF. rewrite <- find_function_unchanged in FINDF; auto. exists Zero.
-            exists (State (Stackframe retreg vbase next rms :: s) (current_version func) (ver_entry (current_version func)) newrm ms). split.
-            * left. apply plus_one. apply nd_exec_lowered.
-              eapply exec_Call; eauto. rmagreeb.
-            * apply refl_match; auto. constructor; auto. constructor.
-              intros. eapply agree_transfer; eauto. 
-              2: { apply agree_insert_dead.
-                   eapply expr_list_live_agree. eauto. }
-              simpl. left. auto.
-        - inv MATCHSTACK. inv MSF.
-          + exists Zero. exists (State s1 fprev next (rmprev#retreg<-retval) ms). split.
-            * left. apply plus_one. apply nd_exec_lowered.
-              eapply exec_Return; eauto. rmagreeb.
-            * apply refl_match; auto.
-          + exists Zero. exists (State s1 vbase next (rms0#retreg<-retval) ms). split.
-            * left. apply plus_one. apply nd_exec_lowered.
-              eapply exec_Return; eauto. rmagreeb.
-            * apply deopt_match; auto. 
-          + destruct (in_or_not next l_anc).
-            * exists One. exists (State s1 vbase next (rmprev#retreg<-retval) ms). split.
-              ** left. apply plus_one. apply nd_exec_lowered.
-                 eapply exec_Return; eauto. rmagreeb.
-              ** apply anc_match; auto. 
-            * exists Zero. exists (State s1 vbase next (rmprev#retreg<-retval) ms). split.
-              ** left. apply plus_one. apply nd_exec_lowered.
-                 eapply exec_Return; eauto. rmagreeb.
-              ** apply opt_match; auto. 
-        - inv MATCHSTACK. exists One. exists (Final retval ms). split.
-          + left. apply plus_one. apply nd_exec_lowered.
-            eapply exec_Return_Final; eauto. rmagreeb.
-          + apply final_match; auto.
-        - exists Zero. exists (State s vbase next rms ms). split.
-          + left. apply plus_one. apply nd_exec_lowered.
-            eapply exec_Printexpr; eauto. rmagreeb.
-          + apply deopt_match; auto. eapply agree_transfer; eauto.
-            2: { eapply expr_live_agree. eauto. }
-            simpl. left. auto.
-        - exists Zero. exists (State s vbase next rms ms). split.
-          + left. apply plus_one. apply nd_exec_lowered. eapply exec_Printstring; eauto.
-          + apply deopt_match; auto.
-            eapply agree_transfer; eauto. simpl. left. auto.
-        - exists Zero. exists (State s vbase next rms newms). split.
-          + left. apply plus_one. apply nd_exec_lowered. eapply exec_Store; eauto.
-            * clear EVAL_AD. rmagreeb.
-            * clear EVAL_ST. rmagreeb.
-              eapply expr_live_agree. eauto.
-          + apply deopt_match; auto. eapply agree_transfer; eauto.
-            simpl. left. auto.
-            repeat (eapply expr_live_agree; eauto).
-        - exists Zero. exists (State s vbase next (rms#reg<-val) ms). split.
-          + left. apply plus_one. apply nd_exec_lowered.
-            eapply exec_Load; eauto. rmagreeb.
-          + apply deopt_match; auto. eapply agree_transfer; eauto. 
-            2: { apply agree_insert_dead.
-                 eapply expr_live_agree. eauto. }
-            simpl. left. auto.
-        - exists Zero. exists (State s vbase next rms ms). split.
-          + left. apply plus_one. apply nd_exec_lowered. destruct tgt.
-            eapply exec_Assume_holds; eauto. rmagreeb.
-          + apply deopt_match; auto. eapply agree_transfer; eauto.
-            2: { destruct tgt.
-                 eapply synth_live_agree. eapply varmap_live_agree.
-                 eapply expr_list_live_agree. eauto. }
-            simpl. left. auto.
-        - eapply agree_update_regmap in UPDATE; eauto.
-          2: { eapply expr_list_live_agree. eauto. }
-          eapply agree_synthesize_frame in SYNTH; eauto.
-          2: { eapply varmap_live_agree. eapply expr_list_live_agree. eauto. }
-          exists Zero. exists (State (synth++s) newver la newrm ms). split.
-          + left. apply plus_one. apply nd_exec_lowered.
-            eapply exec_Assume_fails; eauto; try rmagreeb.
-            * erewrite base_version_unchanged; eauto. apply FINDF.
-            * apply synth_frame_unchanged in SYNTH. eauto.
-          + apply refl_match; auto. apply match_app; auto. }
-      * inv DEOPT_COND. simpl in FINDF.
-        rewrite <- base_version_unchanged in FINDF.
-        unfold live_dr_transf in AGREE. rewrite CODE in AGREE.
-        apply synth_frame_unchanged in SYNTH.
-        eapply agree_update_regmap in UPDATE; eauto.
-        eapply agree_synthesize_frame in SYNTH; eauto.
-        2: { eapply varmap_live_agree. eauto. }
-        exists Zero. exists (State s vbase next rms ms). split.
-        ** left. apply plus_one. eapply nd_exec_Anchor_go_on.
-           econstructor; eauto.
-        ** apply deopt_match; auto.
-           eapply agree_transfer; eauto. 
-           2: { eapply synth_live_agree. eapply varmap_live_agree. eauto. }
-           simpl. left. auto.
-      * inv DEOPT_COND. simpl in FINDF.
-        rewrite <- base_version_unchanged in FINDF.
-        unfold live_dr_transf in AGREE. rewrite CODE in AGREE.
-        apply synth_frame_unchanged in SYNTH.
-        eapply agree_update_regmap in UPDATE; eauto.
-        eapply agree_synthesize_frame in SYNTH; eauto.
-        2: { eapply varmap_live_agree. eauto. }
-        exists Zero. exists (State (synth ++ s) newver la newrm ms). split.
-        ** left. apply plus_one. eapply nd_exec_Anchor_deopt.
-           econstructor; eauto.
-        ** apply refl_match; auto. apply match_app; auto. 
-
-    + inv STEP. inv STEP0.      (* final_match *)
-Qed.
+      { unfold ir_step, ir_int_step in STEP0. repeat sdo_ok. destruct p0.
+        destruct i; repeat sdo_ok; unfold live_dr_transf in AGREE; rewrite HDO3 in AGREE.
+        - exists Zero. econstructor. split.
+          + left. apply plus_one. eapply IR_step. unfold ir_step, ir_int_step.
+            rewrite HDO3. simpl. eauto.
+          + apply deopt_match; eauto.
+            eapply agree_transfer; eauto. simpl; auto.
+        - eapply agree_eval_expr in HDO0; eauto.
+          2: { apply agree_sym. eauto. }
+          exists Zero. econstructor. split.
+          + left. apply plus_one. eapply IR_step. unfold ir_step, ir_int_step.
+            rewrite HDO3. simpl. rewrite HDO0. simpl. eauto.
+          + apply deopt_match; eauto.
+            eapply agree_transfer; eauto. simpl; auto.
+            eapply expr_live_agree; eauto.
+        - simpl in HDO0. repeat sdo_ok. unfold n_push_interpreter_stackframe in HDO1.
+          simpl in HDO1. destruct top; inv HDO1.
+          eapply agree_eval_list_reg in HDO0; eauto.
+          2: { apply agree_sym; eauto. }
+          exists Zero. econstructor. split.
+          + left. apply plus_one. eapply IR_step. unfold ir_step, ir_int_step.
+            rewrite HDO3. simpl. unfold n_push_interpreter_stackframe. unfold sbind.
+            simpl. rewrite HDO0. simpl. eauto.
+          + simpl. eapply refl_match; eauto. apply match_cons; auto.
+            apply frame_deopt. intros retval.
+            eapply agree_transfer; eauto. simpl; auto.
+            apply agree_insert_dead.
+            eapply reg_list_live_agree. eauto.
+        - eapply agree_eval_reg in HDO5; eauto.
+          2: { apply agree_sym. eauto. }
+          destruct (bool_of_int i) eqn:COND; repeat sdo_ok.                                          
+          + exists Zero. econstructor. split.
+            * left. apply plus_one. eapply IR_step. unfold ir_step, ir_int_step.
+              rewrite HDO3. simpl. rewrite HDO5. simpl. rewrite COND. simpl. eauto.
+            * apply deopt_match; eauto.
+              eapply agree_transfer; eauto. simpl; auto. 
+              eapply reg_live_agree; eauto.
+          + exists Zero. econstructor. split.
+            * left. apply plus_one. eapply IR_step. unfold ir_step, ir_int_step.
+              rewrite HDO3. simpl. rewrite HDO5. simpl. rewrite COND. simpl. eauto.
+            * apply deopt_match; eauto.
+              eapply agree_transfer; eauto. simpl; auto. 
+              eapply reg_live_agree; eauto.
+        - eapply agree_eval_expr in HDO0; eauto.
+          2: { apply agree_sym. eauto. }
+          exists Zero. econstructor. split.
+          + left. apply plus_one. eapply IR_step. unfold ir_step, ir_int_step.
+            rewrite HDO3. simpl. rewrite HDO0. simpl. eauto.
+          + simpl. eapply refl_match. auto.
+        - eapply agree_eval_expr in HDO0; eauto.
+          2: { apply agree_sym. eauto. }
+          exists Zero. econstructor. split.
+          + left. apply plus_one. eapply IR_step. unfold ir_step, ir_int_step.
+            rewrite HDO3. simpl. rewrite HDO0. simpl. eauto.
+          + apply deopt_match; eauto.
+            eapply agree_transfer; eauto. simpl; auto.
+            apply agree_insert_dead. eapply expr_live_agree; eauto.
+        - eapply agree_eval_reg in HDO5; eauto.
+          2: { apply agree_sym. eauto. }
+          eapply agree_eval_reg in HDO0; eauto.
+          2: { apply agree_sym. eapply agree_subset; eauto. apply reg_live_subset. }
+          unfold n_memset in HDO6. destruct (Integers.Int.lt i mem_size) eqn:RANGE; inv HDO6.
+          exists Zero. econstructor. split.
+          + left. apply plus_one. eapply IR_step. unfold ir_step, ir_int_step.
+            rewrite HDO3. simpl. rewrite HDO0. simpl. rewrite HDO5. simpl.
+            unfold n_memset. unfold sbind. rewrite RANGE. simpl. eauto.
+          + apply deopt_match; eauto.
+            eapply agree_transfer; eauto. simpl; auto.
+            eapply reg_live_agree. eapply reg_live_agree; eauto.
+        - eapply agree_eval_reg in HDO0; eauto.
+          2: { apply agree_sym. eauto. }
+          unfold n_memget in HDO5. destruct (Integers.Int.lt i mem_size) eqn:RANGE; inv HDO5.
+          destruct (heap # (intpos.pos_of_int i)) eqn:HEAP; inv H0.
+          exists Zero. econstructor. split.
+          + left. apply plus_one. eapply IR_step. unfold ir_step, ir_int_step.
+            rewrite HDO3. simpl. rewrite HDO0. simpl. 
+            unfold n_memget. unfold sbind. rewrite RANGE. simpl. rewrite HEAP. simpl. eauto.
+          + apply deopt_match; eauto.
+            eapply agree_transfer; eauto. simpl; auto.
+            apply agree_insert_dead; eauto. eapply reg_live_agree; eauto.
+        - destruct d. repeat sdo_ok. eapply agree_eval_expr in HDO5; eauto.
+          (* we could avoid with base_no_spec *)
+          2: { apply agree_sym. eauto. }
+          destruct (bool_of_int i) eqn:GUARD; repeat sdo_ok. 
+          + exists Zero. econstructor. split.
+            * left. apply plus_one. eapply IR_step. unfold ir_step, ir_int_step.
+              rewrite HDO3. simpl. rewrite HDO5. simpl. rewrite GUARD. simpl. eauto.
+            * eapply deopt_match; auto. eapply agree_transfer; eauto.
+              simpl. auto. eapply varmap_live_agree. eapply expr_live_agree; eauto.
+          + eapply agree_update_regmap in HDO0; eauto.
+            2: { eapply expr_live_agree; eauto. }
+            exists Zero. econstructor. split.
+            * left. apply plus_one. eapply IR_step. unfold ir_step, ir_int_step.
+              rewrite HDO3. simpl. rewrite HDO5. simpl. rewrite GUARD. rewrite HDO0. simpl. eauto.
+            * simpl. eapply refl_match; auto.
+        - destruct d. inv HDO0. }
+      * admit.                   (* base no spec *)
+      * admit.                   (* base no spec *)
+Admitted.
