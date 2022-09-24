@@ -2197,7 +2197,7 @@ Proof.
          eapply same_mut with (p:=Prim_OpenSF); eauto. constructor.
       ** apply match_refl. simpl. auto.
     * exists Refl.                 (* Deopt *)
-      exists (Halt_IR (base_version func, ltgt, rm), ms2). split.
+      exists (Halt_IR (fn_base func, ltgt, rm), ms2). split.
       ** left. apply plus_one. eapply Deopt; eauto.
          eapply mut_monad_same_effect; eauto. apply mut_target.
          eapply mut_monad_same_effect; eauto. apply mut_build_rm.

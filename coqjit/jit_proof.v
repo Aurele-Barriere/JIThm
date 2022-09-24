@@ -451,7 +451,7 @@ Proof.
            split. left. apply plus_one. apply exe_step. eapply Return_EOE; eauto.
            constructor; auto.
       * inv MATCH_CP. exists O. destruct p1 as [ftgt ltgt]. simpl in HDO2.
-        exists (Dynamic p0 None (Halt_IR (base_version f, ltgt, r)) ms2 nbopt).
+        exists (Dynamic p0 None (Halt_IR (fn_base f, ltgt, r)) ms2 nbopt).
         destruct ns as [mut ac]. destruct n as [mut1 ac1]. destruct ms2 as [mut2 ac2].
         apply build_rm_same in HDO0 as H. subst.
         assert (ac = ac2). { eapply mut_monad_same_code; eauto. apply mut_target. }

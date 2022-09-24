@@ -232,7 +232,7 @@ Definition jit_prog: nasm_prog jit_state :=
          do (ftgt, ltgt) <<- get_target (loc);
          do rm <<- build_rm (loc);
            do func <<- try_option ((prog_funlist (prog jd)) # ftgt) "Unkown function";
-           do version <<- fret (base_version func);
+           do version <<- fret (fn_base func);
            fret (E0, EXE_IR jd (version, ltgt, rm))
        end)
 

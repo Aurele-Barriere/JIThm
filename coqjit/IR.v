@@ -77,11 +77,25 @@ Record version: Type := mk_version {
   ver_entry: label;
 }.
 
+(* Defining base versions: no speculative (Anchor & Assume) instructions *)
+Inductive is_spec: instruction -> Prop :=
+| spec_assume: forall g tgt vm next,
+    is_spec (Assume g tgt vm next)
+| spec_framestate: forall tgt vm next,
+    is_spec (Anchor tgt vm next).           
+
+Definition base_code (c:code): Prop :=
+  forall (pc:label) (i:instruction), c!pc = Some i -> ~ (is_spec i).
+
+Definition base_version (v:version): Prop :=
+  base_code (ver_code v).
+
 
 Record function': Type := mk_function {
   fn_params : list reg;
   fn_base : version;
   fn_opt : option version;
+  base_no_spec: base_version fn_base
                             }.
 (* The native code is stored in another data-structure *)
 
@@ -142,8 +156,6 @@ Definition current_version (f:function): version :=
   | Some o => o
   end.
 
-Definition base_version (f:function) : version :=
-  fn_base f.
 
 Definition find_function_ir (fid:fun_id) (p:program): option function :=
   (prog_funlist p) ! fid.
@@ -156,8 +168,11 @@ Definition find_base_version (fid:fun_id) (p:program): option version :=
   end.
 
 (* Replacing the optimized version of a function *)
-Definition set_version_function (v:version) (f:function): function :=
-  mk_function (fn_params f) (fn_base f) (Some v).
+Program Definition set_version_function (v:version) (f:function): function :=
+  mk_function (fn_params f) (fn_base f) (Some v) _.
+Next Obligation.
+  apply (base_no_spec f).
+Qed.
 
 (* Update a fun_list with the new function containing the new version *)
 Definition set_version_funlist (fid:fun_id) (v:version) (fl:PTree.t function): PTree.t function :=

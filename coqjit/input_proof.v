@@ -147,7 +147,7 @@ Proof.
       * right. exists E0. inv MATCH_STACK. exists (EOE retval, ms). eapply Return_EOE; simpl; eauto.
         unfold n_open_stackframe. simpl. rewrite NO_TOP. rewrite <- H. auto.
     + apply safe_step_deopt in SAFE. destruct SAFE as [s' [t STEP]]. inv STEP.
-      right. exists E0. exists (Halt_IR (base_version func, ltgt, rm), ms). eapply Deopt; simpl; eauto.
+      right. exists E0. exists (Halt_IR (fn_base func, ltgt, rm), ms). eapply Deopt; simpl; eauto.
     + left. exists retval. constructor.
     + right. apply safe_step_state in SAFE. destruct SAFE as [s' [t STEP]].
       inv STEP.
@@ -209,7 +209,7 @@ Proof.
         exists (Final retval0). split.
         ** left. apply plus_one. constructor.
         ** inv OPEN_SF. constructor; auto.
-    + inv STEP. inv BUILD_RM. inv TARGET. exists (State (base_version func, ltgt0, rm0) stk (state_mem ms2)). split.
+    + inv STEP. inv BUILD_RM. inv TARGET. exists (State (fn_base func, ltgt0, rm0) stk (state_mem ms2)). split.
       * left. apply plus_one. eapply input_Deopt; eauto.
       * constructor; auto.
     + inv STEP. 

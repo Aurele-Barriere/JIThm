@@ -214,7 +214,7 @@ Inductive mixed_step : anchor_status -> program -> option (RTLfun + RTLblockfun)
       (TARGET: exec (get_target loc) naive_impl (ms,nc) = SOK (ftgt, ltgt) (ms1,nc))
       (BUILD_RM: exec (build_rm loc) naive_impl (ms1,nc) = SOK rm (ms2,nc))
       (FINDF: (prog_funlist p)#ftgt = Some func)
-      (TGTVER: base_version func = newver),
+      (TGTVER: fn_base func = newver),
       mixed_step anc p rtl nc (S_Deopt loc, ms) E0 (Halt_IR (newver, ltgt, rm), ms2)
 (* Giving semantics to the primitives in RTL *)
 | RTL_prim:
@@ -358,7 +358,7 @@ Inductive input_step : program -> input_state -> Events.trace -> input_state -> 
 | input_Deopt:
     forall p stk ftgt ltgt newrm func newver mem
       (FINDF: (prog_funlist p)#ftgt = Some func)
-      (TGTVER: base_version func = newver),
+      (TGTVER: fn_base func = newver),
       input_step p (Deoptstate ftgt ltgt newrm stk mem) E0 (State (newver, ltgt, newrm) stk mem).
 
 Inductive init_input_state (p:program) : input_state -> Prop :=

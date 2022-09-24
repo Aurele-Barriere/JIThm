@@ -283,9 +283,9 @@ Qed.
 
 Lemma base_version_set_version:
   forall vins f,
-    base_version (set_version_function vins f) = base_version f.
+    fn_base (set_version_function vins f) = fn_base f.
 Proof.
-  intros vins f. unfold set_version_function, base_version. simpl. auto.
+  intros vins f. unfold set_version_function. simpl. auto.
 Qed.
 
 Lemma current_version_set_version:

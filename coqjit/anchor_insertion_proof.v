@@ -1183,8 +1183,9 @@ Proof.
         - right. split. 2:constructor. apply star_refl.
         - simpl in CODEOPT. simpl in ANCHOR. simpl in ANCCODE. rewrite ANCHOR in ANCCODE. inv ANCCODE.
           eapply deoptstate_match; eauto.
-          rewrite GETDEF in DEF0. eapply defined_deopt_subset_agree in DEF0 as DEF0'; eauto.
-          2: { intros r IN. apply PositiveSet.inter_spec in IN as [IN _]. eauto. }
+          rewrite GETDEF in DEF0.
+          apply defined_deopt_subset_agree with (rs':=rs_def ) in DEF0 as DEF0'; eauto.
+          2: { intros r IN. auto. } 
           destruct DEF0' as [rmdeopt [UPDATE' AGREE]].
           eapply deopt_subset_agree in BUILD as AGREE'; eauto.
           2: { intros r IN. apply PositiveSet.inter_spec in IN as [IN _]. auto. }
@@ -1213,21 +1214,23 @@ Proof.
     + rewrite OPT in OPTV. inv OPTV. (* shift_match *)
       inv STEP.
       { eapply lowered_diagram; eauto. }
-      * admit.                  (* TODO: I must reuse base_no_spec *)
-      * admit.                  (* TODO: I must reuse base_no_spec *)
-        (* inv DEOPT_COND.         (* Anchor steps can't happen in shift_match *) *)
-        (* rewrite CODE in SAME_CODE. unfold vbase in SAME_CODE. apply (base_no_spec f) in SAME_CODE. *)
-        (* exfalso. apply SAME_CODE. constructor. *)
+      * simpl in ANCHOR. simpl in SAME_CODE. rewrite ANCHOR in SAME_CODE.
+        unfold vbase in SAME_CODE. apply (base_no_spec f) in SAME_CODE. exfalso.
+        apply SAME_CODE. constructor.
+      * simpl in ANCHOR. simpl in SAME_CODE. rewrite ANCHOR in SAME_CODE.
+        unfold vbase in SAME_CODE. apply (base_no_spec f) in SAME_CODE. exfalso.
+        apply SAME_CODE. constructor.
 
     + rewrite OPT in OPTV. inv OPTV. (* opt_match *)
       eapply code_preservation in NOTIN as SAME_CODE; eauto.
       inv STEP.
       { eapply lowered_diagram; eauto. }
-      * admit.                  (* TODO: I must reuse base_no_spec *)
-      * admit.                  (* TODO: I must reuse base_no_spec *)
-      (* * inv DEOPT_COND. (* Anchor steps can't happen in opt_match *) *)
-      (*   rewrite CODE in SAME_CODE. unfold vbase in SAME_CODE. apply (base_no_spec f) in SAME_CODE. *)
-      (*   exfalso. apply SAME_CODE. constructor. *)
+      * simpl in ANCHOR. simpl in SAME_CODE. rewrite ANCHOR in SAME_CODE.
+        unfold vbase in SAME_CODE. apply (base_no_spec f) in SAME_CODE. exfalso.
+        apply SAME_CODE. constructor.
+      * simpl in ANCHOR. simpl in SAME_CODE. rewrite ANCHOR in SAME_CODE.
+        unfold vbase in SAME_CODE. apply (base_no_spec f) in SAME_CODE. exfalso.
+        apply SAME_CODE. constructor.
 
     +
       rename s into stk. rename s' into stk'. rename HDO into INSERT.
@@ -1558,6 +1561,8 @@ Proof.
               rewrite HDO3. simpl. rewrite HDO5. simpl. rewrite GUARD. rewrite HDO0. simpl. eauto.
             * simpl. eapply refl_match; auto.
         - destruct d. inv HDO0. }
-      * admit.                   (* base no spec *)
-      * admit.                   (* base no spec *)
-Admitted.
+      * unfold vbase in ANCHOR. apply (base_no_spec f) in ANCHOR. exfalso.
+        apply ANCHOR. constructor.
+      * unfold vbase in ANCHOR. apply (base_no_spec f) in ANCHOR. exfalso.
+        apply ANCHOR. constructor.
+Qed.
