@@ -533,7 +533,7 @@ Lemma list_reg_commut:
     PositiveSet.In a (reg_list_live le live).
 Proof.
   intros le a rs H. generalize dependent rs. induction le; intros; simpl; auto.
-  apply IHle. unfold reg_live. rewrite PositiveSet.add_spec. right. auto.
+  unfold reg_live. rewrite PositiveSet.add_spec. right. apply IHle. auto.
 Qed.
 
 (* It is sufficient to agree on all the registers of [live] except [reg]
@@ -673,8 +673,9 @@ Proof.
   generalize dependent lr. generalize dependent live. induction l; intros.
   { inv H0. constructor. }
   inv H0. repeat do_ok. eapply agree_eval_reg in HDO; eauto.
-  2: { simpl. apply list_reg_commut. unfold reg_live. rewrite PositiveSet.add_spec. left. auto. }
-  constructor; auto. eapply IHl; eauto.
+  2: { simpl. unfold reg_live. rewrite PositiveSet.add_spec. left. auto. }
+  constructor; auto. eapply IHl; eauto. eapply agree_subset; eauto.
+  simpl. apply reg_live_subset.
 Qed.
 
 Inductive double : nat -> nat -> Prop :=
