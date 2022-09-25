@@ -183,17 +183,21 @@ let backend_suggestion (ps:profiler_state) = ps.fidoptim
 
 (* speculating on the first argument *)
 let middle_end_suggestion (ps:profiler_state) : (fun_id * middle_wish) list =
-  let fid = ps.fidoptim in
-  let p = ps.prog in
-  match (PMap.get fid ps.args_pred) with
-  | (Seen (i))::l -> [fid, AS_INS (UNA(Coq_ueq i,get_first_param fid p), get_fun_entry fid p)]
-  | _ -> []
+  if !allow_spec then
+    let fid = ps.fidoptim in
+    let p = ps.prog in
+    match (PMap.get fid ps.args_pred) with
+    | (Seen (i))::l -> [fid, AS_INS (UNA(Coq_ueq i,get_first_param fid p), get_fun_entry fid p)]
+    | _ -> []
+  else []
 
 (* inserting an anchor at the function entry IF  *)
 let anchors_to_insert (ps:profiler_state): (fun_id * (label list)) list =
-  match (PMap.get ps.fidoptim ps.args_pred) with
-  | (Seen (i))::l -> [ps.fidoptim, [get_fun_entry ps.fidoptim ps.prog]]
-  | _ -> []
+  if !allow_spec then
+    match (PMap.get ps.fidoptim ps.args_pred) with
+    | (Seen (i))::l -> [ps.fidoptim, [get_fun_entry ps.fidoptim ps.prog]]
+    | _ -> []
+  else []
 
 let print_anchors (ps:profiler_state) : unit =
   match (anchors_to_insert ps) with

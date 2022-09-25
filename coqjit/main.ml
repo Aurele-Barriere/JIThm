@@ -313,7 +313,8 @@ let main =
       ("-u", Arg.Set Flags.safe_mode, "Disable Unsafe mode: interpret the ASM code");
       ("-a", Arg.Set Flags.print_asm_end, "Print the native codes at the end of the execution");
       ("-c", Arg.Set Flags.print_chkpts, "Print the Checkpoints during execution");
-      ("-i", Arg.Clear Flags.allow_opt, "Interpreter only, disable generation of native codes")
+      ("-i", Arg.Clear Flags.allow_opt, "Interpreter only, disable generation of native codes");
+      ("-n", Arg.Clear Flags.allow_spec, "No Speculation")
     ] in
   let usage () =
     Printf.printf "%s" "\027[91mPlease use the jit executable on exactly one argument: the program to execute\027[0m\n\027[33m  Example: \027[0m ./jit progs_IR/prime.ir\n";
