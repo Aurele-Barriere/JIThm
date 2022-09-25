@@ -116,12 +116,6 @@ Definition get_retval (rl:ret_loc) : free int :=
   end.
 
 
-(** * Profiler oracle, external heuristics  *)
-(* The JIT correctness does not depend on their implementation *)
-Parameter initial_profiler_state: profiler_state.
-Parameter profiler: profiler_state -> checkpoint -> profiler_state.
-Parameter optim_policy: profiler_state -> jit_status.
-
 (** * JIT Data  *)
 (* The state of the JIT that gets modified with each step *)
 (* Not counting the global data-structures in the monad state *)
@@ -134,11 +128,8 @@ Record jit_data: Type := mk_data {
 (* Maximum number of optimizations to perform *)
 Parameter max_optim: nat.
 
-(* Maximum number of interpreter steps *)
-Parameter interpreter_fuel : nat.
-
 Definition initial_jit_data (p:program) : jit_data :=
-  (mk_data p initial_profiler_state max_optim).
+  (mk_data p (initial_profiler_state p) max_optim).
 
 (* Choosing the next step of the JIT (execution or optimizing) *)
 Definition next_status (ps:profiler_state) (cp:checkpoint) (nb_optim:nat): jit_status :=

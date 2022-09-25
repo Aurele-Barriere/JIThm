@@ -26,31 +26,59 @@ let rec int_of_positive = function
   | Coq_xO p -> (int_of_positive p) lsl 1
   | Coq_xH -> 1
 
-   
 type optim_id = fun_id
+
+(* Predicting call arguments values *)
+type predict =
+  | Top                         (* we have seen different values *)
+  | Seen of Integers.Int.int    (* we have only seen this value *)
+  | Bot                         (* we have not seen anything yet *)
+
+let update_predict (i:Integers.Int.int) (p:predict) =
+  match p with
+  | Top -> Top
+  | Bot -> Seen i
+  | Seen x -> if (i = x) then Seen i else Top
+
+let rec update_predict_list (l:Integers.Int.int list) (pl:predict list) =
+  match l, pl with
+  | [], [] -> []
+  | i::l', p::pl' -> (update_predict i p)::(update_predict_list l' pl')
+  | _, _ -> []                  (* allows to predict even if we don't know the nb of args *)
+
+let initial_pl : predict list =
+  List.init 10 (fun _ -> Bot)
+  
    
 (* So far, the profiler associates to each function its number of calls *)
+(* and speculate on the first argument of the compiled function *)
 type profiler_state =
-  { fun_map : int PMap.t;
-    status : jit_status;
+  { fun_map : int PMap.t;       (* number of seen calls for each function *)
+    status : jit_status;        (* where we put our suggestion of optimization *)
     already: fun_id list;       (* already optimized functions *)
-    fidoptim : optim_id; }
+    fidoptim : optim_id;        (* function that we are thinking about optimizing *)
+    args_pred: (predict list) PMap.t; (* predicting the values of args of each function *)
+    prog: program;                    (* the initial program. can be useful to inspect *)
+  }
 (* In already, we put functions that we already ASKED to optimize *)
 (* Maybe these suggestions weren't followed by the JIT, and the functions weren't actually optimized *)
 
 (* Initially, each function has been called 0 times, with no arguments *)
-let initial_profiler_state =
+let initial_profiler_state (p:program) =
   { fun_map = PMap.init 0;      (* initially no functions have been called *)
     status = Exe;
     already = [];               (* no optimized functions *)
-    fidoptim = Coq_xH; }
+    fidoptim = Coq_xH;
+    args_pred = PMap.init initial_pl;
+    prog = p;
+  }
 
 (* The number of calls to a function before optimization *)
 let nb_calls_optim = 2
 
 (* Keep the same profiler state information, but with Exe status *)
 let exe_ps (ps:profiler_state) =
-  {fun_map = ps.fun_map; status = Exe; already = ps.already; fidoptim = ps.fidoptim }
+  {fun_map = ps.fun_map; status = Exe; already = ps.already; fidoptim = ps.fidoptim; args_pred = ps.args_pred; prog = ps.prog }
   
 let print_stacktop s : unit =
   Printf.printf "stacktop {";
@@ -136,7 +164,43 @@ let print_debug_cp (cp:checkpoint) : unit =
   end;
   Printf.printf "%!"
 
-  
+
+
+(* attempts to find the entry label of a function *)
+let get_fun_entry (fid:fun_id) (p:program) : label =
+  match (find_function_ir fid p) with
+  | None -> Coq_xH
+  | Some f -> (f.fn_base).ver_entry
+
+let get_first_param (fid:fun_id) (p:program) : reg  =
+  match (find_function_ir fid p) with
+  | None -> Coq_xH
+  | Some f -> hd (f.fn_params)
+    
+let optim_policy (ps:profiler_state) = ps.status
+
+let backend_suggestion (ps:profiler_state) = ps.fidoptim
+
+(* speculating on the first argument *)
+let middle_end_suggestion (ps:profiler_state) : (fun_id * middle_wish) list =
+  let fid = ps.fidoptim in
+  let p = ps.prog in
+  match (PMap.get fid ps.args_pred) with
+  | (Seen (i))::l -> [fid, AS_INS (UNA(Coq_ueq i,get_first_param fid p), get_fun_entry fid p)]
+  | _ -> []
+
+(* inserting an anchor at the function entry IF  *)
+let anchors_to_insert (ps:profiler_state): (fun_id * (label list)) list =
+  match (PMap.get ps.fidoptim ps.args_pred) with
+  | (Seen (i))::l -> [ps.fidoptim, [get_fun_entry ps.fidoptim ps.prog]]
+  | _ -> []
+
+let print_anchors (ps:profiler_state) : unit =
+  match (anchors_to_insert ps) with
+  | [fid, [entry]] ->  Printf.printf ("\027[95mPROFILER:\027[0m Anchor + Assume: %d@%d\n%!") (int_of_positive fid) (int_of_positive entry)
+  | _ -> ()
+
+
 (* The function that analyzes the current synchronization state *)
 let profiler (ps:profiler_state) (cp:checkpoint) =
   if !print_chkpts then print_debug_cp (cp);
@@ -148,22 +212,17 @@ let profiler (ps:profiler_state) (cp:checkpoint) =
         (* TODO: also increase the counter when we call from native? *)
         let psmap = ps.fun_map in
         let newpsmap = PMap.set fid ((PMap.get fid psmap)+1) psmap in (* updating the number of executions *)
+        let pred = ps.args_pred in
+        let newpred = PMap.set fid (update_predict_list val_list (PMap.get fid pred)) pred in (* updating our argument prediction *)
         begin match (PMap.get fid newpsmap > nb_calls_optim && not(List.mem fid ps.already)) with
         (* The profiler suggests optimizing the called function *)
         | true ->
            if !print_chkpts then (Printf.printf ("\027[95mPROFILER:\027[0m Optimizing Fun%d\n%!") (int_of_positive fid));
-           {fun_map = newpsmap; status = Opt; already = fid::ps.already; fidoptim = fid}
+           let newps = {fun_map = newpsmap; status = Opt; already = fid::ps.already; fidoptim = fid; args_pred = newpred; prog=ps.prog} in
+           if !print_chkpts then (print_anchors newps);
+           newps
+           
         (* Either already optimized or not been called enough: we keep executing *)
-        | false -> {fun_map = newpsmap; status = Exe; already = ps.already; fidoptim = ps.fidoptim }
+        | false -> {fun_map = newpsmap; status = Exe; already = ps.already; fidoptim = ps.fidoptim; args_pred = newpred; prog=ps.prog }
         end
      | _ -> exe_ps ps              (* On all other states, we simply keep executing *)
-       
-    
-let optim_policy (ps:profiler_state) = ps.status
-
-let backend_suggestion (ps:profiler_state) = ps.fidoptim
-
-(* TODO: try to speculate on arguments *)
-let middle_end_suggestion (ps:profiler_state) = []
-
-let anchors_to_insert (ps:profiler_state) = []

@@ -74,6 +74,7 @@ Definition transf_expr (e:IR.expr) : operation * list reg :=
     | ueqzero => (Ocmp (Ccompimm Ceq Int.zero), [shift_reg r])
     | uplus i => (Olea (Aindexed (Int.signed i)), [shift_reg r])
     | umul i => (Omulimm i, [shift_reg r])
+    | ueq i => (Ocmp (Ccompimm Ceq i), [shift_reg r])
     end
   | BIN b r1 r2 =>
     match b with

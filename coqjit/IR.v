@@ -34,7 +34,8 @@ Inductive un_op: Type :=
 | uneg : un_op
 | ueqzero : un_op
 | uplus : int -> un_op
-| umul : int -> un_op.
+| umul : int -> un_op
+| ueq : int -> un_op.
 
 (* 0ary operations *)
 Inductive z_op: Type :=
@@ -366,3 +367,10 @@ Inductive stk_no_anchor: stack -> Prop :=
              (STK_NO: stk_no_anchor stk)
              (SF_NO: sf_no_anchor sf),
     stk_no_anchor (sf::stk).
+
+(** * Middle end Wishes  *)
+(* The different kinds of middle-end Optimizations passes the profiler wishes to make *)
+Inductive middle_wish : Type :=
+| AS_INS: expr -> label -> middle_wish.
+(* later, we could add constprop, delayed assume insertion and inlining from CoreJIT *)
+(* anchor removal is now done automatically, and is not an optim wish  *)

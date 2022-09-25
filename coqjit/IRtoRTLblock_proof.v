@@ -522,6 +522,7 @@ Proof.
     destruct u; inv H2; inv H3; simpl; rewrite HDO; simpl; auto.
     + destruct (Integers.Int.eq i Integers.Int.zero) eqn:Z; simpl; auto.
     + rewrite Integers.Int.repr_signed. auto.
+    + destruct (Integers.Int.eq i i0) eqn:EQ; simpl; auto.
   - destruct z. inv H0. inv H3. simpl. auto.
 Qed.
 

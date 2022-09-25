@@ -1,0 +1,23 @@
+[Main: Fun1]
+
+Function Fun1:
+Parameters: ()
+Version: [Entry: lbl1]
+<lbl1> reg1 <- 17 lbl2
+<lbl2> reg2 <- 67 lbl3
+<lbl3> reg3 <- Call Fun2 (reg1, reg2) lbl4
+<lbl4> reg3 <- Call Fun2 (reg1, reg2) lbl5
+<lbl5> reg3 <- Call Fun2 (reg1, reg2) lbl6
+<lbl6> reg3 <- Call Fun2 (reg2, reg1) lbl7
+<lbl7> Return reg3
+EndVersion
+EndFunction
+
+Function Fun2:
+Parameters: (reg1,reg2)
+Version: [Entry: lbl1]
+<lbl1> Return (Plus reg1 reg2)
+EndVersion
+EndFunction
+
+EndProgram

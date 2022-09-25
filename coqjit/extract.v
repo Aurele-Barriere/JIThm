@@ -157,8 +157,6 @@ Set Extraction AccessOpaque.
 
 Extract Constant max_optim => "Params.max_optim".
 
-Extract Constant interpreter_fuel => "Params.interpreter_fuel".
-
 Extract Constant profiler_state => "Profiler.profiler_state".
 
 Extract Constant initial_profiler_state => "Profiler.initial_profiler_state".
@@ -214,6 +212,7 @@ Separate Extraction
    naive_impl array_impl
    init_mem
    synchro_state
+   middle_wish
    (* Extracting the native spec (for a safe execution) *)
    sret'
    monad.nasm_prog

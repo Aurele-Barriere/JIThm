@@ -42,6 +42,7 @@ Definition eval_expr (e:expr) (rm:reg_map): res int :=
       | ueqzero => OK (int_of_bool (Int.eq v Int.zero))
       | uplus i => OK (Int.add v i)
       | umul i => OK (Int.mul v i)
+      | ueq i => OK (int_of_bool (Int.eq v i))
       end
   | ZAR z =>
     match z with
