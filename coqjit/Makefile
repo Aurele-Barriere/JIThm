@@ -5,7 +5,7 @@ MENHIR = $(wildcard MenhirLib/*.v)
 FLOCQ = $(wildcard flocq/*/*.v)
 LIBS = $(COMPCERT) $(MENHIR) $(FLOCQ)
 FILES = common.v monad.v intpos.v IR.v primitives.v IRtoRTLblock.v backend.v jit.v liveness.v def_regs.v ASMinterpreter.v optimizer.v IRinterpreter.v monad_impl.v RTLblock.v flattenRTL.v assume_insertion.v anchor_insertion.v anchor_removal.v
-PROOFS = mixed_sem.v input_proof.v IRtoRTLblock_proof.v backend_proof.v optimizer_proof.v sem_properties.v dynamic_proof.v internal_simulations.v monad_properties.v flattenRTL_proof.v customSmallstep.v customBehaviors.v jit_proof.v assume_insertion_proof.v anchor_insertion_proof.v
+PROOFS = mixed_sem.v input_proof.v IRtoRTLblock_proof.v backend_proof.v optimizer_proof.v sem_properties.v dynamic_proof.v internal_simulations.v monad_properties.v flattenRTL_proof.v customSmallstep.v customBehaviors.v jit_proof.v assume_insertion_proof.v anchor_insertion_proof.v anchor_removal_proof.v
 
 COQC=coqc -R compcert_coq compcert -R flocq Flocq -R MenhirLib MenhirLib
 COQDEP=coqdep -R compcert_coq compcert -R flocq Flocq -R MenhirLib MenhirLib

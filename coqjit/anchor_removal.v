@@ -2,10 +2,10 @@
 (* Lowers programs into our final intermediate representation *)
 (* This is the last pass of the middle-end optimizer *)
 
-Require Export List.
-Require Export Coqlib.
-Require Export Maps.
-Require Export IR.
+Require Import List.
+Require Import Coqlib.
+Require Import Maps.
+Require Import IR.
 
 
 (* ANchors are replaced with Nop *)
