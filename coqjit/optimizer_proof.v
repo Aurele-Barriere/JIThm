@@ -73,23 +73,27 @@ Theorem backend_optimizer_correct:
     backward_internal_simulation p p None None nc nc' AnchorOff AnchorOff.
 Proof.
   intros p ms nc ms' nc' ps OPT. unfold backend_optimize in OPT.
-  repeat sdo_ok. destruct n0 as [mut cod]. apply n_check_same in HDO0 as SAME. inv SAME. destruct c.
+  destruct (backend_suggestion ps) eqn:SUG.
+  2: { inv OPT. apply backward_internal_refl. }
+  repeat sdo_ok. rename f into suggestion.
+  simpl in HDO. repeat sdo_ok.
+  destruct n as [mut cod]. repeat sdo_ok. apply n_check_same in HDO0 as SAME. inv SAME. destruct c.
   { inv OPT. apply backward_internal_refl. }
-  destruct ((prog_funlist p) # (backend_suggestion ps)) eqn:INSTALLED; inv OPT.
+  destruct ((prog_funlist p) # (suggestion)) eqn:INSTALLED; inv OPT.
   2: { apply backward_internal_refl. }
   unfold backend_and_install in H0.
-  destruct (backend (current_version f) (backend_suggestion ps) (fn_params f)) eqn:BACKEND; inv H0.
+  destruct (backend (current_version f) (suggestion) (fn_params f)) eqn:BACKEND; inv H0.
   2: { apply backward_internal_refl. }
   unfold backend in BACKEND.
-  destruct (IRtoRTLblock.rtlgen (backend_suggestion ps) (current_version f) (fn_params f)) as [[[block_code block_entry]block_idx]|] eqn:BLOCKGEN.
+  destruct (IRtoRTLblock.rtlgen (suggestion) (current_version f) (fn_params f)) as [[[block_code block_entry]block_idx]|] eqn:BLOCKGEN.
   2: { inv BACKEND. } unfold bind3, bind in BACKEND. simpl fst in BACKEND. simpl snd in BACKEND.
-  destruct (flattenRTL.flatten ((backend_suggestion ps:positive), block_code, block_entry, block_idx)) eqn:FLATTEN.
+  destruct (flattenRTL.flatten ((suggestion:positive), block_code, block_entry, block_idx)) eqn:FLATTEN.
   2: { inv BACKEND. }
-  apply compose_backward_simulation with (p2:=p) (rtl2:=Some (inr (backend_suggestion ps, block_code, block_entry, block_idx))) (nc2:=cod) (anc2:=AnchorOff).
+  apply compose_backward_simulation with (p2:=p) (rtl2:=Some (inr (suggestion, block_code, block_entry, block_idx))) (nc2:=cod) (anc2:=AnchorOff).
   { apply single_mixed. }
   - eapply block_gen_correct; eauto. (* IRtoRTLblock is correct *)
     unfold n_check_compiled in HDO0. simpl in HDO0.
-    destruct (cod # (backend_suggestion ps)); inv HDO0. auto.
+    destruct (cod # (suggestion)); inv HDO0. auto.
   - apply compose_backward_simulation with (p2:=p) (rtl2:=Some (inl r)) (nc2:=cod) (anc2:=AnchorOff).
     { apply single_mixed. }
     + apply flatten_correct; auto.    (* flattening RTLblock is correct *)

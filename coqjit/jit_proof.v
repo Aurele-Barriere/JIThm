@@ -112,10 +112,10 @@ Proof.
   inv STEP; try inv ATOMIC; try destruct s1; try inv RUN;
     try inv H0; try eT; repeat sdo_ok; auto.
   - destruct (next_status (profiler (prof_state j) c) c (nb_optim j)); repeat sdo_ok; auto.
-  - destruct c; repeat sdo_ok; auto. simpl in EXEC_STEP. repeat sdo_ok.
-    destruct c; repeat sdo_ok; auto.
-    simpl in EXEC_STEP. repeat sdo_ok. destruct c; repeat sdo_ok; auto.
-    simpl in EXEC_STEP. repeat sdo_ok. destruct c; repeat sdo_ok. auto. auto.
+  (* - destruct c; repeat sdo_ok; auto. simpl in EXEC_STEP. repeat sdo_ok. *)
+  (*   destruct c; repeat sdo_ok; auto. *)
+  (*   simpl in EXEC_STEP. repeat sdo_ok. destruct c; repeat sdo_ok; auto. *)
+  (*   simpl in EXEC_STEP. repeat sdo_ok. destruct c; repeat sdo_ok. auto. auto. *)
   - destruct c; repeat sdo_ok; auto.
     + destruct c0; repeat sdo_ok; auto.
     + destruct o; repeat sdo_ok; auto.
@@ -138,10 +138,10 @@ Proof.
   intros S impl p t s s' H. unfold jit_prog in H. simpl in H.
   inv H; auto; try inv ATOMIC; try destruct s1; try inv RUN; try inv H0; try eT; repeat sdo_ok; auto.
   - destruct (next_status (profiler (prof_state j) c) c (nb_optim j)); repeat sdo_ok; auto.
-  - destruct c; repeat sdo_ok; auto. simpl in EXEC_STEP. repeat sdo_ok.
-    destruct c; repeat sdo_ok; auto.
-    simpl in EXEC_STEP. repeat sdo_ok. destruct c; repeat sdo_ok; auto.
-    simpl in EXEC_STEP. repeat sdo_ok. destruct c; repeat sdo_ok. auto. auto.
+  (* - destruct c; repeat sdo_ok; auto. simpl in EXEC_STEP. repeat sdo_ok. *)
+  (*   destruct c; repeat sdo_ok; auto. *)
+  (*   simpl in EXEC_STEP. repeat sdo_ok. destruct c; repeat sdo_ok; auto. *)
+  (*   simpl in EXEC_STEP. repeat sdo_ok. destruct c; repeat sdo_ok. auto. auto. *)
   - destruct c; repeat sdo_ok; auto.
     + destruct c0; repeat sdo_ok; auto.
     + destruct o; repeat sdo_ok; auto.
@@ -306,19 +306,29 @@ Proof.
       esplit. eapply ext_step; simpl; auto. repeat sok_do. rewrite STATUS. simpl. eauto.
       esplit. eapply ext_step; simpl; auto. repeat sok_do. rewrite STATUS. simpl. eauto.
     + right. exists E0.  simpl.
-      destruct (n_check_compiled (backend_suggestion ps) (mut, ac)) eqn:CHECK. (* OPT *)
-      { unfold n_check_compiled in CHECK. simpl in CHECK. destruct (ac#(backend_suggestion ps)); inv CHECK. }
+      destruct (backend_suggestion ps) eqn:SUG.
+      2: { esplit. eapply ext_step; simpl; eauto. rewrite exec_bind. unfold sbind.
+           unfold optimize. simpl. rewrite exec_bind. unfold sbind. simpl.
+           unfold backend_optimize. rewrite SUG. simpl. eauto. }
+      rename f into suggestion.
+      destruct (n_check_compiled (suggestion) (mut, ac)) eqn:CHECK. (* OPT *)
+      { unfold n_check_compiled in CHECK. simpl in CHECK. destruct (ac#(suggestion)); inv CHECK. }
       destruct c. 
-      { econstructor. eapply ext_step; simpl; eauto.
-        repeat sok_do. unfold sbind. rewrite CHECK. simpl. auto. }
-      destruct ((prog_funlist (safe_middle_end ps p0)) # (backend_suggestion ps)) eqn:FIND.
-      * destruct (backend (current_version f) (backend_suggestion ps) (fn_params f)) eqn:BACK.
-        ** esplit. eapply ext_step; simpl; auto. repeat sok_do. unfold sbind. rewrite CHECK.
-           rewrite exec_bind. rewrite exec_bind. unfold sbind. rewrite FIND. simpl.
+      { esplit. eapply ext_step; simpl; eauto. rewrite exec_bind. unfold sbind.
+        unfold optimize. simpl. rewrite exec_bind. unfold sbind. simpl.
+        unfold backend_optimize. rewrite SUG. simpl. unfold sbind. rewrite CHECK. simpl. eauto. }
+      destruct ((prog_funlist (safe_middle_end ps p0)) # (suggestion )) eqn:FIND.
+      * destruct (backend (current_version f) (suggestion) (fn_params f)) eqn:BACK.
+        ** esplit. eapply ext_step; simpl; auto. unfold optimize. simpl.
+           rewrite exec_bind. unfold sbind. unfold backend_optimize. simpl. rewrite SUG.
+           simpl. unfold sbind. rewrite CHECK. rewrite exec_bind. unfold sbind. rewrite FIND.
            unfold backend_and_install. rewrite BACK. simpl. eauto.
-        ** esplit. eapply ext_step; simpl; auto. simpl. unfold sbind. rewrite CHECK. rewrite FIND.
+        ** esplit. eapply ext_step; simpl; auto. unfold optimize. simpl.
+           rewrite exec_bind. unfold sbind. unfold backend_optimize. simpl.
+           rewrite SUG. simpl. unfold sbind. rewrite CHECK. rewrite FIND.
            unfold backend_and_install. rewrite BACK. simpl. eauto.
-      * esplit. eapply ext_step; simpl; eauto. simpl. unfold sbind. rewrite CHECK.
+      * esplit. eapply ext_step; simpl; eauto. unfold optimize, backend_optimize. simpl.
+        rewrite SUG. simpl. unfold sbind. rewrite CHECK. 
         rewrite FIND. simpl. eauto.
     + right. exists E0. destruct cp; inv MATCH_CP.              (* EXE *)
       * inv STEP.                                   (* CALL *)
@@ -410,12 +420,14 @@ Proof.
       apply safe_dynamic in SAFE. destruct SAFE as [[r FINAL] | SAFE_STEP]. inv FINAL.
       (* { unfold optimize. rewrite exec_bind. sok_do. unfold sbind. rewrite HDO. auto. } *)
       assert (SAME: mut1 = mut2).
-      { Transparent optimize. unfold optimize in OPT. repeat sdo_ok.
-        apply n_check_same in HDO1. inv HDO1. destruct u, c; inv HDO2; auto.
-        destruct ((prog_funlist (safe_middle_end ps p0)) ! (backend_suggestion ps)); inv H0; auto.
-        unfold backend_and_install in H1.
-        destruct (backend (current_version f) (backend_suggestion ps) (fn_params f)); inv H1; auto.
-        destruct mut1; auto. }
+      { Transparent optimize. unfold optimize, backend_optimize in OPT. repeat sdo_ok.
+        destruct (backend_suggestion ps) eqn:BACK; repeat sdo_ok.
+        - simpl in HDO1. repeat sdo_ok. apply n_check_same in HDO0. inv HDO0. destruct u, c; inv HDO1; auto.
+          destruct ((prog_funlist (safe_middle_end ps p0)) ! (f)); inv H0; auto.
+          unfold backend_and_install in H1.
+          destruct (backend (current_version f0) (f) (fn_params f0)); inv H1; auto.
+          destruct mut1; auto.
+        - inv HDO1. auto. }
       inv SAME.
       exists (1%nat). exists (Dynamic p1 None (S_Call loc) (mut2, ac2) nbopt). 
       repeat sdo_ok. split.

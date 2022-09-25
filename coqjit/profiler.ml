@@ -179,7 +179,8 @@ let get_first_param (fid:fun_id) (p:program) : reg  =
     
 let optim_policy (ps:profiler_state) = ps.status
 
-let backend_suggestion (ps:profiler_state) = ps.fidoptim
+let backend_suggestion (ps:profiler_state) =
+  if !allow_compile then (Some ps.fidoptim) else None
 
 (* speculating on the first argument *)
 let middle_end_suggestion (ps:profiler_state) : (fun_id * middle_wish) list =
@@ -208,7 +209,7 @@ let print_anchors (ps:profiler_state) : unit =
 (* The function that analyzes the current synchronization state *)
 let profiler (ps:profiler_state) (cp:checkpoint) =
   if !print_chkpts then print_debug_cp (cp);
-  match !allow_opt with        (* if this is false, the profiler will never suggest optimizing *)
+  match !allow_opts with        (* if this is false, the profiler will never suggest optimizing *)
   | false -> exe_ps ps
   | true -> 
      match cp with

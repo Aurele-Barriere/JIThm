@@ -17,7 +17,7 @@ Parameter anchors_to_insert : profiler_state -> list (fun_id * (list label)).
 Parameter middle_end_suggestion: profiler_state -> list (fun_id * middle_wish).
 
 (* Suggest a function to use the backend on *)
-Parameter backend_suggestion: profiler_state -> fun_id.
+Parameter backend_suggestion: profiler_state -> option fun_id.
 
 
 (** * Interface - External Heuristics  *)

@@ -15,19 +15,22 @@ Require Import middle_end.
 (** * The Full Backend Compiler  *)
 (* If the profiler suggests a wrong function to optimize, we catch the error and do nothing *)
 Definition backend_optimize (ps:profiler_state) (p:program): free unit :=
-  do fid <<- fret (backend_suggestion ps);
-    do status <<- fprim(Prim_Check_Compiled fid);
-    match status with
-    | Installed _ => nothing     (* function has already been compiled *)
-    | Not_compiled =>
-      match ((prog_funlist p) # fid) with
-      | Some func =>
-        do current_ver <<- fret (current_version func);
-          do params <<- fret (fn_params func);
-          backend_and_install current_ver fid params (* catching errors that may happen during compilation *)
-      | None => nothing            (* Can't find the function to optimize *)
+  match (backend_suggestion ps) with
+  | Some fid =>
+      do status <<- fprim(Prim_Check_Compiled fid);
+      match status with
+      | Installed _ => nothing     (* function has already been compiled *)
+      | Not_compiled =>
+          match ((prog_funlist p) # fid) with
+          | Some func =>
+              do current_ver <<- fret (current_version func);
+              do params <<- fret (fn_params func);
+              backend_and_install current_ver fid params (* catching errors that may happen during compilation *)
+          | None => nothing            (* Can't find the function to optimize *)
+          end
       end
-    end.
+  | None => nothing       
+  end.
 
 (** * The Full Optimizer, Middle-end + Backend  *)
 (* returns a program: the one that has been modified by the middle-end *)
