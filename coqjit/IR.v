@@ -87,6 +87,10 @@ Inductive is_spec: instruction -> Prop :=
 Definition base_code (c:code): Prop :=
   forall (pc:label) (i:instruction), c!pc = Some i -> ~ (is_spec i).
 
+(* Code without anchors, used after lowering *)
+Definition no_anchor_code (c:code) : Prop :=
+  forall pc tgt vm next, c!pc = Some (Anchor tgt vm next) -> False.
+
 Definition base_version (v:version): Prop :=
   base_code (ver_code v).
 
@@ -133,7 +137,13 @@ Record program: Type := mk_program {
   prog_funlist : PTree.t function;
 }.
 
-
+(* A CoreIR program that does not contain Anchors *)
+(* We only need to define it on opt versions, since base versions use base_no_spec *)
+Definition no_anchor (p:program) : Prop :=
+  forall fid f vopt,
+    (prog_funlist p) ! fid = Some f ->
+    fn_opt f = Some vopt ->
+    no_anchor_code (ver_code vopt).
 
 (** * Program manipulation  *)
 Definition successors (instr:instruction) : list label :=
