@@ -163,3 +163,7 @@ let optim_policy (ps:profiler_state) = ps.status
 
 let backend_suggestion (ps:profiler_state) = ps.fidoptim
 
+(* TODO: try to speculate on arguments *)
+let middle_end_suggestion (ps:profiler_state) = []
+
+let anchors_to_insert (ps:profiler_state) = []

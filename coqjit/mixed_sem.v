@@ -387,11 +387,11 @@ Inductive dynamic_step : unit -> dynamic_state -> Events.trace -> dynamic_state 
       (MIXED: mixed_step AnchorOff p rtl nc (sy1, ms1) t (sy2, ms2)),
       dynamic_step tt (Dynamic p rtl sy1 (ms1,nc) nb_opt) t (Dynamic p rtl sy2 (ms2,nc) nb_opt)
 | opt_step:
-    forall p rtl nc1 nc2 loc ms nb_opt ps
+    forall p newp rtl nc1 nc2 loc ms nb_opt ps
       (EXE: exists t sy2 ms2, mixed_step AnchorOff p rtl nc1 (S_Call loc, ms) t (sy2, ms2))
-      (OPT: exec (optimize ps p) naive_impl (ms,nc1) = SOK tt (ms,nc2)),
+      (OPT: exec (optimize ps p) naive_impl (ms,nc1) = SOK newp (ms,nc2)),
       dynamic_step tt (Dynamic p rtl (S_Call loc) (ms,nc1) (S nb_opt)) E0
-                   (Dynamic p rtl (S_Call loc) (ms,nc2) nb_opt).
+                   (Dynamic newp rtl (S_Call loc) (ms,nc2) nb_opt).
 (* Optimizations are only possible when execution is also possible *)
 (* This also the dynamic sem to be blocking exactly when the mixed_sem is *)
 

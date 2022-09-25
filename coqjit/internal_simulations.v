@@ -23,7 +23,8 @@ Definition p_reflexive {index:Type} (P:mixed_state -> Prop) (match_states: index
 
 Inductive refl_point: mixed_state -> Prop :=
 | refl_call:
-    forall loc ms,
+  forall loc ms
+    (NO_ANCHOR: stk_no_anchor (state_stack ms)),
       refl_point (S_Call loc, ms).
 
 Definition call_refl {index:Type} (match_states: index -> mixed_state -> mixed_state -> Prop) : Prop :=

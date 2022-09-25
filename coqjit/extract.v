@@ -29,6 +29,7 @@ Require Export backend.
 Require Export optimizer.
 Require Export monad_impl.
 Require Export ASMinterpreter.
+Require Export profiler_types.
 Require Extraction.
 
 (* Standard lib *)
@@ -165,6 +166,10 @@ Extract Constant initial_profiler_state => "Profiler.initial_profiler_state".
 Extract Constant profiler => "Profiler.profiler".
 
 Extract Constant backend_suggestion => "Profiler.backend_suggestion".
+
+Extract Constant anchors_to_insert => "Profiler.anchors_to_insert".
+
+Extract Constant middle_end_suggestion => "Profiler.middle_end_suggestion".
 
 Extract Constant optim_policy => "Profiler.optim_policy".
 

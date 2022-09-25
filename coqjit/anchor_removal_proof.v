@@ -766,3 +766,22 @@ Proof.
           + eapply refl_match. auto.
       }
 Qed.      
+
+
+(** * Removing Anchors leads to Anchor-free programs  *)
+
+
+Theorem lowering_no_anchor:
+  forall p newp,
+    lowering p = newp ->
+    no_anchor newp.
+Proof.
+  intros. unfold lowering in H.
+  unfold no_anchor. intros.
+  unfold no_anchor_code. intros.
+  rewrite <- H in H0. simpl in H0. rewrite PTree.gmap1 in H0. unfold option_map in H0.
+  destruct ((prog_funlist p)!fid) eqn:FINDF; inv H0.
+  unfold lowering_function in H1. destruct (fn_opt f0) eqn:OPT; inv H1.
+  - eapply preserved_code in H2; eauto. destruct H2. destruct H. destruct x; inv H0.
+  - rewrite OPT in H0. inv H0.
+Qed.

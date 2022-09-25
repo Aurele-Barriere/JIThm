@@ -351,3 +351,18 @@ Definition synchro_of (cp:checkpoint) : synchro_state :=
   | C_Return loc => S_Return loc
   | C_Deopt loc => S_Deopt loc
   end.
+
+(** * No Anchors in our Stacks *)
+(* This is used as an invariant of the JIT execution *)
+Inductive sf_no_anchor: stackframe -> Prop :=
+| ASM_NO: forall asmf, sf_no_anchor (ASM_SF asmf)
+| IR_NO: forall retreg v pc rm
+           (NO_ANC_CODE: no_anchor_code (ver_code v)),
+    sf_no_anchor (IR_SF (retreg, v, pc, rm)).
+
+Inductive stk_no_anchor: stack -> Prop :=
+| NIL_NO: stk_no_anchor nil
+| CONS_NO: forall stk sf
+             (STK_NO: stk_no_anchor stk)
+             (SF_NO: sf_no_anchor sf),
+    stk_no_anchor (sf::stk).

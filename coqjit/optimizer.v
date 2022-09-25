@@ -1,6 +1,6 @@
 (* Full optimizer *)
-(* Here, only the backend part *)
-(* We use the information from the profiler to generate and install some code *)
+(* Middle-end then backend *)
+(* We use the information from the profiler to choose optimizations *)
 
 Require Import RTL.
 Require Import IR.
@@ -9,14 +9,12 @@ Require Import common.
 Require Import Coqlib.
 Require Import backend.
 Require Import primitives.
+Require Import profiler_types.
+Require Import middle_end.
 
-(* The state of the profiler *)
-Parameter profiler_state: Type.
-(* Suggest a function to use the backend on *)
-Parameter backend_suggestion: profiler_state -> fun_id.
-
+(** * The Full Backend Compiler  *)
 (* If the profiler suggests a wrong function to optimize, we catch the error and do nothing *)
-Definition optimize (ps:profiler_state) (p:program): free unit :=
+Definition backend_optimize (ps:profiler_state) (p:program): free unit :=
   do fid <<- fret (backend_suggestion ps);
     do status <<- fprim(Prim_Check_Compiled fid);
     match status with
@@ -31,3 +29,10 @@ Definition optimize (ps:profiler_state) (p:program): free unit :=
       end
     end.
 
+(** * The Full Optimizer, Middle-end + Backend  *)
+(* returns a program: the one that has been modified by the middle-end *)
+(* but the native code are installed in the executable memory  *)
+Definition optimize (ps:profiler_state) (p:program) : free program :=
+  do newp <<- fret (safe_middle_end ps p);
+  do _ <<- backend_optimize ps newp;
+  fret (newp).

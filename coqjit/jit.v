@@ -13,7 +13,7 @@ Require Import primitives.
 Require Import monad.
 Require Import Errors.
 Require Import intpos.
-
+Require Import profiler_types.
 
 (** * Hypervisor Helper functions  *)
 
@@ -195,8 +195,8 @@ Definition jit_prog: nasm_prog jit_state :=
          end)
 
     | OPT jd cp => Ato                             (* Optimizing Before Executing *)
-      (do _ <<- optimize (prof_state jd) (prog jd); (* Calls the backend and installs code *)
-         do newjd <<- fret (mk_data (prog jd) (prof_state jd) (Nat.pred (nb_optim jd)));
+      (do newp <<- optimize (prof_state jd) (prog jd); (* Calls the backend and installs code *)
+         do newjd <<- fret (mk_data newp (prof_state jd) (Nat.pred (nb_optim jd)));
          fret (E0, EXE newjd cp))  (* we can go to PROF again if we wish to optimize twice *)
 
     | EXE jd cp => Ato            (* Dispatching execution *)

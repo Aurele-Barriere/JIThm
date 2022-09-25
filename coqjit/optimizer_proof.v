@@ -19,6 +19,8 @@ Require Import backend.
 Require Import IRtoRTLblock_proof.
 Require Import flattenRTL_proof.
 Require Import backend_proof.
+Require Import profiler_types.
+Require Import middle_end_proof.
 
 (** * Backward simulation reflexivity  *)
 (* Show that there is a simulation between a program and itself *)
@@ -63,14 +65,14 @@ Qed.
 
 
 
-(** * Correctness of the optimizer step  *)
+(** * Correctness of the backend optimizer step  *)
 (* using the correctness of the 3 components: RTLblok generation, RTL flattening, and backend *)
-Theorem optimizer_correct:
+Theorem backend_optimizer_correct:
   forall p ms nc ms' nc' ps
-    (OPT: exec (optimize ps p) naive_impl (ms, nc) = SOK tt (ms', nc')),
+    (OPT: exec (backend_optimize ps p) naive_impl (ms, nc) = SOK tt (ms', nc')),
     backward_internal_simulation p p None None nc nc' AnchorOff AnchorOff.
 Proof.
-  intros p ms nc ms' nc' ps OPT. unfold optimize in OPT.
+  intros p ms nc ms' nc' ps OPT. unfold backend_optimize in OPT.
   repeat sdo_ok. destruct n0 as [mut cod]. apply n_check_same in HDO0 as SAME. inv SAME. destruct c.
   { inv OPT. apply backward_internal_refl. }
   destruct ((prog_funlist p) # (backend_suggestion ps)) eqn:INSTALLED; inv OPT.
@@ -99,3 +101,30 @@ Proof.
       { apply flatten_wf in FLATTEN. auto. }
       simpl. unfold n_install_code. eauto.
 Qed.
+
+
+(** * Correctness of the entire optimization step  *)
+Opaque backend_optimize.
+Theorem optimizer_correct:
+  forall p newp ms nc ms' nc' ps
+    (NO: no_anchor p)
+    (OPT: exec (optimize ps p) naive_impl (ms, nc) = SOK newp (ms', nc')),
+    backward_internal_simulation p newp None None nc nc' AnchorOff AnchorOff.
+Proof.
+  intros p newp ms nc ms' nc' ps NO OPT. unfold optimize in OPT. repeat sdo_ok. destruct u.
+  eapply compose_backward_simulation. apply single_mixed.
+  eapply safe_optimize_correct; eauto.
+  eapply backend_optimizer_correct; eauto.
+Qed.
+
+(* Proving that the new program has no anchors *)
+Lemma optimize_no_anchor:
+  forall ps p newp s s',
+    no_anchor p ->
+    exec (optimize ps p) naive_impl s = SOK newp s' ->
+    no_anchor newp.
+Proof.
+  intros. unfold optimize in H0. repeat sdo_ok.
+  eapply middle_end_no_anchor; eauto.
+Qed.
+  

@@ -21,7 +21,8 @@ Require Import jit.
 Require Import dynamic_proof.
 Require Import backend_proof.
 Require Import Integers.
-
+Require Import profiler_types.
+Require Import middle_end.
 
 
 Lemma pop_args_same:
@@ -284,7 +285,7 @@ Proof.
 Qed.
 
 
-                                                                   
+Opaque safe_middle_end.
 Theorem jit_dynamic:
   forall p,
     backward_simulation (dynamic_sem p None) (jit_sem p naive_impl).
@@ -304,20 +305,21 @@ Proof.
     + right. exists E0. destruct (next_status (profiler ps cp) cp nbopt) eqn:STATUS. (* PROF *)
       esplit. eapply ext_step; simpl; auto. repeat sok_do. rewrite STATUS. simpl. eauto.
       esplit. eapply ext_step; simpl; auto. repeat sok_do. rewrite STATUS. simpl. eauto.
-    + right. exists E0. destruct (n_check_compiled (backend_suggestion ps) (mut, ac)) eqn:CHECK. (* OPT *)
+    + right. exists E0.  simpl.
+      destruct (n_check_compiled (backend_suggestion ps) (mut, ac)) eqn:CHECK. (* OPT *)
       { unfold n_check_compiled in CHECK. simpl in CHECK. destruct (ac#(backend_suggestion ps)); inv CHECK. }
       destruct c. 
-      esplit. eapply ext_step; simpl; auto. repeat sok_do. unfold sbind. rewrite CHECK. simpl. auto.
-      destruct ((prog_funlist p0) # (backend_suggestion ps)) eqn:FIND.
-      destruct (backend (current_version f) (backend_suggestion ps) (fn_params f)) eqn:BACK.
-      esplit. eapply ext_step; simpl; auto. repeat sok_do. rewrite FIND. unfold sbind. rewrite CHECK.
-      rewrite exec_bind. unfold sbind.
-      repeat sok_do. unfold backend_and_install. rewrite BACK. simpl. auto.
-      esplit. eapply ext_step; simpl; auto. repeat sok_do. rewrite FIND. unfold sbind. rewrite CHECK.
-      rewrite exec_bind. unfold sbind.
-      repeat sok_do. unfold backend_and_install. rewrite BACK. simpl. auto.
-      esplit. eapply ext_step; simpl; auto. repeat sok_do. unfold sbind. rewrite CHECK. rewrite FIND.
-      simpl. auto.
+      { econstructor. eapply ext_step; simpl; eauto.
+        repeat sok_do. unfold sbind. rewrite CHECK. simpl. auto. }
+      destruct ((prog_funlist (safe_middle_end ps p0)) # (backend_suggestion ps)) eqn:FIND.
+      * destruct (backend (current_version f) (backend_suggestion ps) (fn_params f)) eqn:BACK.
+        ** esplit. eapply ext_step; simpl; auto. repeat sok_do. unfold sbind. rewrite CHECK.
+           rewrite exec_bind. rewrite exec_bind. unfold sbind. rewrite FIND. simpl.
+           unfold backend_and_install. rewrite BACK. simpl. eauto.
+        ** esplit. eapply ext_step; simpl; auto. simpl. unfold sbind. rewrite CHECK. rewrite FIND.
+           unfold backend_and_install. rewrite BACK. simpl. eauto.
+      * esplit. eapply ext_step; simpl; eauto. simpl. unfold sbind. rewrite CHECK.
+        rewrite FIND. simpl. eauto.
     + right. exists E0. destruct cp; inv MATCH_CP.              (* EXE *)
       * inv STEP.                                   (* CALL *)
         ** esplit. eapply ext_step; simpl; auto. simpl.
@@ -402,22 +404,24 @@ Proof.
       * exists (1%nat). exists (Dynamic p0 None sync ms2 nbopt). split. right. split. apply star_refl. lia. constructor; auto.
       * exists (2%nat). exists (Dynamic p0 None sync ms2 nbopt). destruct nbopt. inv STATUS. destruct cp; inv STATUS. inv MATCH_CP.
         split. right. split. apply star_refl. lia. constructor; auto.
-    + inv STEP; try inv RUN; try inv ATOMIC. simpl in EXEC_STEP. repeat sdo_ok.
+    + Opaque optimize. inv STEP; try inv RUN; try inv ATOMIC. simpl in EXEC_STEP. repeat sdo_ok.
       destruct ns as [mut1 ac1]. destruct ms2 as [mut2 ac2]. (* OPT *)
-      destruct u.
-      assert (OPT: exec (optimize ps p0) naive_impl (mut1, ac1) = SOK tt (mut2, ac2)).
-      { unfold optimize. rewrite exec_bind. sok_do. unfold sbind. rewrite HDO. auto. }
-      exists (1%nat). exists (Dynamic p0 None (S_Call loc) (mut2, ac2) nbopt). 
-      repeat sdo_ok. apply n_check_same in HDO. inv HDO.
+      assert (OPT: exec (optimize ps p0) naive_impl (mut1, ac1) = SOK p1 (mut2, ac2)) by auto.
       apply safe_dynamic in SAFE. destruct SAFE as [[r FINAL] | SAFE_STEP]. inv FINAL.
-      destruct c; inv HDO0.
-      { split. left. apply plus_one. eapply opt_step; eauto. constructor; auto. constructor. }
-      destruct ((prog_funlist p0) # (backend_suggestion ps)) eqn:FINDF; repeat sdo_ok.
-      2: { inv H0. split. left. apply plus_one. eapply opt_step; eauto. constructor; auto. constructor. }
-      unfold backend_and_install in H0. destruct (backend (current_version f) (backend_suggestion ps) (fn_params f)) eqn:BACK.
-      2: { inv H0. split. left. apply plus_one. eapply opt_step; eauto. constructor; auto. constructor. }
-      unfold exec in H0. simpl in H0. apply n_install_same in H0. subst.
-      split. left. apply plus_one. eapply opt_step; eauto. constructor; auto. constructor.
+      (* { unfold optimize. rewrite exec_bind. sok_do. unfold sbind. rewrite HDO. auto. } *)
+      assert (SAME: mut1 = mut2).
+      { Transparent optimize. unfold optimize in OPT. repeat sdo_ok.
+        apply n_check_same in HDO1. inv HDO1. destruct u, c; inv HDO2; auto.
+        destruct ((prog_funlist (safe_middle_end ps p0)) ! (backend_suggestion ps)); inv H0; auto.
+        unfold backend_and_install in H1.
+        destruct (backend (current_version f) (backend_suggestion ps) (fn_params f)); inv H1; auto.
+        destruct mut1; auto. }
+      inv SAME.
+      exists (1%nat). exists (Dynamic p1 None (S_Call loc) (mut2, ac2) nbopt). 
+      repeat sdo_ok. split.
+      * left. apply plus_one. eapply opt_step; eauto.
+      * constructor. constructor.
+      
     + inv STEP; try inv RUN; try inv ATOMIC. (* EXE *)
       destruct cp; repeat sdo_ok.
       * inv MATCH_CP. destruct c0; repeat sdo_ok. (* Call *)
@@ -519,21 +523,23 @@ Qed.
 (** * Correctness of the JIT with naive implementation of the primitives *)
 Corollary jit_correctness_naive:
   forall p,
+    no_anchor p ->               (* initially, the CoreIR program must not contain any Anchors *)
     backward_simulation (input_sem p) (jit_sem p naive_impl).
 Proof.
-  intros p. eapply compose_backward_simulation.
+  intros p NO. eapply compose_backward_simulation.
   - apply jit_single_events.
-  - eapply dynamic_input_correct. 
+  - eapply dynamic_input_correct. auto. 
   - apply jit_dynamic. 
 Qed.
 
 Corollary jit_correctness_array:
   forall p,
+    no_anchor p ->               (* initially, the CoreIR program must not contain any Anchors *)
     backward_simulation (input_sem p) (jit_sem p array_impl).
 Proof.
-  intros p. eapply compose_backward_simulation.
+  intros p NO. eapply compose_backward_simulation.
   - apply jit_single_events.
-  - eapply jit_correctness_naive.
+  - eapply jit_correctness_naive. auto.
   - apply forward_to_backward_simulation.
     + apply refinement. apply list_refine.
     + apply jit_receptive.
@@ -545,12 +551,13 @@ Qed.
 Theorem jit_correctness:
   forall p mstate (impl: @monad_impl mstate)
     (REF: refines array_impl impl),
+    no_anchor p ->               (* initially, the CoreIR program must not contain any Anchors *)
     backward_simulation (input_sem p) (jit_sem p impl).
 Proof.
-  intros p mstate impl REF.
+  intros p mstate impl REF NO.
   eapply compose_backward_simulation.
   { apply jit_single_events. }
-  { apply jit_correctness_naive. }
+  { apply jit_correctness_naive. auto. }
   apply forward_to_backward_simulation.
   2: { apply jit_receptive. }
   2: { apply jit_determinacy. }
@@ -563,8 +570,9 @@ Qed.
 (* Any behavior of the JIT improves a behavior of the original program semantics *)
 Theorem jit_preservation_array:
   forall p beh,
-  program_behaves (jit_sem p array_impl) beh ->
-  exists beh', program_behaves (input_sem p) beh' /\ behavior_improves beh' beh.
+    no_anchor p ->               (* initially, the CoreIR program must not contain any Anchors *)
+    program_behaves (jit_sem p array_impl) beh ->
+    exists beh', program_behaves (input_sem p) beh' /\ behavior_improves beh' beh.
 Proof.
   intros. eapply backward_simulation_behavior_improves; eauto.
   apply jit_correctness_array; auto.
@@ -573,13 +581,15 @@ Qed.
 (* Same theorem for any implementation that refines array_impl *)
 Theorem jit_preservation:
   forall (p:program) (beh:program_behavior) (state:Type) (impl: monad_impl state),
+    no_anchor p ->               (* initially, the CoreIR program must not contain any Anchors *)
     refines array_impl impl ->
     program_behaves (jit_sem p impl) beh ->
     exists beh', program_behaves (input_sem p) beh' /\ behavior_improves beh' beh.
 Proof.
   intros p beh state impl REFINES BEHAVES.
   eapply backward_simulation_behavior_improves; eauto.
-  apply jit_correctness. apply REFINES.
+  apply jit_correctness. auto. apply REFINES.
 Qed.
 (* Print Assumptions jit_preservation. *)
       
+(* NOTE: we would remove the need to not contain anchors by simply doing lowering before executing the JIT *)
