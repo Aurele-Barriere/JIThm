@@ -58,7 +58,7 @@ test: test.ml
 
 clean: clean_coq clean_extracted clean_prims clean_ocaml clean_tmp
 
-clean_all: clean clean_libs
+clean_all: clean clean_libs clean_doc
 
 clean_coq:
 	@echo Cleaning Coq compiled files
@@ -90,8 +90,16 @@ clean_ocaml:
 	-@rm test
 	-@rm -R _build
 
+clean_doc:
+	@echo Cleaning HTML output
+	-@rm -R html/
+
 install-deps:
 	opam pin add coqjit . --no-action # tell opam about a local "cogjit" package
 	opam install --deps-only coqjit # then install its dependencies
+
+doc: $(FILES) $(PROOFS)
+	-@mkdir html
+	coqdoc -d html/ $(FILES) $(PROOFS)
 
 -include .depend
